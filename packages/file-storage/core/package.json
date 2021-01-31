@@ -1,0 +1,21 @@
+{
+	"name": "@bigbangjs/file-storage-core",
+	"version": "0.0.1",
+	"description": "File storage abstraction for nodejs",
+	"main": "dist/index.js",
+	"author": "Pablo Ramirez <pablor21@gmail.com>",
+	"license": "MIT",
+	"private": false,
+	"files": [
+		"index.js",
+		"index.d.ts",
+		"dist/**/*"
+	],
+	"scripts": {
+		"build": "yarn clean && yarn compile",
+		"clean": "rimraf ./dist",
+		"compile": "tsc -p tsconfig.build.json"
+	},
+	"devDependencies": {},
+	"dependencies": {}
+}

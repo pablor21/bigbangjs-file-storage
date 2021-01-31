@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+/data
+/coverage
+/temp
+/.vscode
+/yarn-error.log
+/.coveralls.yml
+!.gitkeep
+.DS_Store
+/test-storage
