@@ -164,6 +164,11 @@ export type FileStorageConfigOptions = {
     mimeFn?: (fileName: string) => string | Promise<string>;
 
     /**
+     * Slug function
+     */
+    slugFn?: (input: string, replacement?: string) => string;
+
+    /**
      * Function to obtain a regex based on glob pattern
      */
     matcherType?: new () => IMatcher;
@@ -185,7 +190,7 @@ export type AddProviderOptions = {
     replace?: boolean;
 };
 
-export type DeleteDirectoryOptions = {
+export type DeleteFileEntryOptions = {
     /**
      * Pattern to match subdirs
      */

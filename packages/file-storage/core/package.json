@@ -18,13 +18,15 @@
 	},
 	"peerDependencies": {
 		"mime": "^2.5.0",
-		"minimatch": "^3.0.4"
+		"minimatch": "^3.0.4",
+		"slugify": "^1.4.6"
 	},
 	"devDependencies": {
 		"@types/minimatch": "^3.0.3",
 		"@types/readable-stream": "^2.3.9",
 		"mime": "^2.5.0",
-		"minimatch": "^3.0.4"
+		"minimatch": "^3.0.4",
+		"slugify": "^1.4.6"
 	},
 	"dependencies": {
 		"readable-stream": "^3.6.0"

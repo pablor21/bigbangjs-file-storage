@@ -1,7 +1,7 @@
 import { IBucket } from './buckets';
 import { StorageEventType } from './eventnames';
 import { StorageException, StorageExceptionType } from './exceptions';
-import { objectNull, Registry, resolveMime, stringNullOrEmpty, DefaultMatcher, IMatcher } from './lib';
+import { objectNull, Registry, resolveMime, stringNullOrEmpty, DefaultMatcher, IMatcher, slug } from './lib';
 import { IStorageProvider, ProviderConfigOptions, StorageProviderClassType } from './providers';
 import { AddProviderOptions, FileStorageConfigOptions, LoggerType, StorageResponse } from './types';
 
@@ -13,6 +13,7 @@ const defaultConfigOptions: FileStorageConfigOptions = {
     defaultBucketName: null,
     returningByDefault: false,
     mimeFn: resolveMime,
+    slugFn: slug,
     matcherType: DefaultMatcher,
     logger: console,
 };
@@ -195,6 +196,48 @@ export class FileStorage {
         provider.on(StorageEventType.BUCKET_DESTROYED, (bucket: IBucket) => {
             this.buckets.remove(bucket.absoluteName);
         });
+    }
+
+    /**
+     * Make a slug from a filename
+     * @param input the filename
+     * @param replacement replacement character
+     */
+    public slug(input: string, replacement = '-') {
+        if (typeof (this.config.slugFn) === 'function') {
+            return this.config.slugFn(input, replacement);
+        }
+        return input;
+    }
+
+    /**
+     * Get the mime of a file
+     * @param fileName the filename
+     */
+    public async getMime(fileName: string): Promise<string> {
+        if (typeof (this.config.mimeFn) === 'function') {
+            return this.config.mimeFn(fileName);
+        }
+        return 'unknown';
+    }
+
+    /**
+     * Check if a path matches a pattern
+     * @param path the path
+     * @param pattern the pattern string (Glob) or regexp
+     */
+    public matches(path: string | string[], pattern: string | RegExp): boolean | string[] {
+        if (pattern instanceof RegExp) {
+            if (Array.isArray(path)) {
+                return path.filter(n => n.match(pattern));
+            }
+            return path.match(pattern);
+        }
+        if (this.matcher?.available) {
+            const ret = this.matcher.match(path, (pattern as string));
+            return ret;
+        }
+        return true;
     }
 
 }

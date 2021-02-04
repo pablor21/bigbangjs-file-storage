@@ -1,4 +1,4 @@
-import { CreateDirectoryOptions, MoveDirectoryOptions, CopyDirectoryOptions, StorageResponse, ListResult, DirectoryListOptions, FileEntryListOptions, FileListOptions, DeleteDirectoryOptions } from '../types';
+import { CreateDirectoryOptions, MoveDirectoryOptions, CopyDirectoryOptions, StorageResponse, ListResult, DirectoryListOptions, FileEntryListOptions, FileListOptions, DeleteFileEntryOptions, GetFileOptions, Streams, CreateFileOptions } from '../types';
 import { canRead, canWrite } from '../lib';
 import { IBucket } from './bucket.interface';
 import { BucketConfigOptions } from './types';
@@ -19,7 +19,6 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         this.provider = provider;
     }
 
-
     public log(level: 'info' | 'debug' | 'warn' | 'error', ...args: any) {
         this.provider.storage.log(level, ...args);
     }
@@ -36,8 +35,8 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         return this.provider.makeDirectory(this, dir, options);
     }
 
-    public async deleteDirectory(dir: string | IDirectory, options?: DeleteDirectoryOptions): Promise<StorageResponse<boolean, NativeResponseType>> {
-        return this.provider.deleteDirectory(this, dir, options);
+    public async delete(dir: string | IFileEntry, options?: DeleteFileEntryOptions): Promise<StorageResponse<boolean, NativeResponseType>> {
+        return this.provider.delete(this, dir, options);
     }
 
     public async emptyDirectory(dir: string | IDirectory): Promise<StorageResponse<boolean, NativeResponseType>> {
@@ -60,7 +59,6 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         return this.provider.listDirectories(this, path, options);
     }
 
-
     public async list<RType extends ListResult<any>>(path: string | IDirectory = '/', options?: FileEntryListOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.list(this, path, options);
     }
@@ -77,5 +75,30 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
     public async fileExists<RType extends IFile | boolean = any>(path: string | IFile, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.fileExists(this, path, returning);
     }
+
+    public async putFile<RType extends IFile | boolean = any>(fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+        return this.provider.putFile(this, fileName, contents, options);
+    }
+
+    public async getFileStream(fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, NativeResponseType>> {
+        return this.provider.getFileStream(this, fileName, options);
+    }
+
+    public async getFileContents(fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>> {
+        return this.provider.getFileContents(this, fileName, options);
+    }
+
+    public async getDirectory<Rtype extends IDirectory = IDirectory>(path: string): Promise<StorageResponse<Rtype, NativeResponseType>> {
+        return this.provider.getDirectory(this, path);
+    }
+
+    public async getFile<Rtype extends IFile = IFile>(path: string): Promise<StorageResponse<Rtype, NativeResponseType>> {
+        return this.provider.getFile(this, path);
+    }
+
+    public async getEntry<Rtype extends IFileEntry = IFileEntry>(path: string): Promise<StorageResponse<Rtype, NativeResponseType>> {
+        return this.provider.getEntry(this, path);
+    }
+
 
 }

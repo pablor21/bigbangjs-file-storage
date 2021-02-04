@@ -1,10 +1,11 @@
 import EventEmitter from 'events';
+import path from 'path';
 import { BucketConfigOptions, IBucket } from '../buckets';
 import { StorageException, StorageExceptionType } from '../exceptions';
 import { FileStorage } from '../filestorage';
 import { StorageEventType } from '../eventnames';
 import { Registry, stringNullOrEmpty } from '../lib';
-import { CopyDirectoryOptions, CreateDirectoryOptions, CreateFileOptions, DeleteDirectoryOptions, DirectoryListOptions, FileEntryListOptions, FileListOptions, GetFileOptions, ListResult, MoveDirectoryOptions, Pattern, StorageResponse, Streams } from '../types';
+import { CopyDirectoryOptions, CreateDirectoryOptions, CreateFileOptions, DeleteFileEntryOptions, DirectoryListOptions, FileEntryListOptions, FileListOptions, GetFileOptions, ListResult, MoveDirectoryOptions, Pattern, StorageResponse, Streams } from '../types';
 import { IStorageProvider } from './provider.interface';
 import { ProviderConfigOptions } from './types';
 import { IFileEntry, IDirectory, IFile } from '../files';
@@ -101,7 +102,7 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
     public abstract destroyBucket(name: string): Promise<StorageResponse<boolean, NativeResponseType>>;
     public abstract listUnregisteredBuckets(creationOptions?: BucketConfigOptions): Promise<StorageResponse<BucketConfigType[], NativeResponseType>>;
     public abstract makeDirectory<RType extends IDirectory | boolean = any>(bucket: IBucket, path: string | IDirectory, options?: CreateDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
-    public abstract deleteDirectory(bucket: IBucket, path: string | IDirectory, options?: DeleteDirectoryOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
+    public abstract delete(bucket: IBucket, path: string | IFileEntry, options?: DeleteFileEntryOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
     public abstract emptyDirectory(bucket: IBucket, path: string | IDirectory): Promise<StorageResponse<boolean, NativeResponseType>>;
     public abstract moveDirectory<RType extends IDirectory | boolean = any>(bucket: IBucket, src: string | IDirectory, dest: string | IDirectory, options?: MoveDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
     public abstract copyDirectory<RType extends IDirectory | boolean = any>(bucket: IBucket, src: string | IDirectory, dest: string | IDirectory, options?: CopyDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
@@ -109,9 +110,12 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
     public abstract exists<RType extends IFileEntry | boolean = any>(bucket: IBucket, path: string | IFileEntry, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>>;
     public abstract list<RType extends ListResult<any>>(bucket: IBucket, path: string | IDirectory, options?: FileEntryListOptions): Promise<StorageResponse<RType, NativeResponseType>>;
     public abstract listFiles<RType extends ListResult<any>>(bucket: IBucket, path: string | IDirectory, options?: FileListOptions): Promise<StorageResponse<RType, NativeResponseType>>;
-    public abstract putFile<RType extends IFile | boolean = any>(bucket: IBucket, filename: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
-    public abstract getFileStream(bucket: IBucket, filename: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, NativeResponseType>>;
-    public abstract getFileContents(bucket: IBucket, filename: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>>;
+    public abstract putFile<RType extends IFile | boolean = any>(bucket: IBucket, fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+    public abstract getFileStream(bucket: IBucket, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, NativeResponseType>>;
+    public abstract getFileContents(bucket: IBucket, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>>;
+    public abstract getDirectory<Rtype extends IDirectory = IDirectory>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
+    public abstract getEntry<Rtype extends IFileEntry = IFileEntry>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
+    public abstract getFile<Rtype extends IFile = IFile>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
 
     protected abstract parseConfig(config: string | ProviderConfigType): ProviderConfigType;
 
@@ -140,17 +144,35 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
     }
 
     protected fileNameMatches(name: string | string[], pattern: Pattern): boolean | string[] {
-        if (pattern instanceof RegExp) {
-            if (Array.isArray(name)) {
-                return name.filter(n => n.match(pattern));
+        return this.storage.matches(name, pattern);
+    }
+
+    protected slug(fileName: string, replacement = '-'): string {
+        return this.storage.slug(fileName, replacement);
+    }
+
+    protected async getMime(fileName: string): Promise<string> {
+        return this.storage.getMime(fileName);
+    }
+
+    protected async resolveBucketAlias(name: string): Promise<string> {
+        return this.storage.resolveBucketAlias(name, this);
+    }
+
+    protected normalizePath(dir?: string): string {
+        if (!dir) {
+            return '/';
+        }
+
+        dir.replace(/\\/g, '/');
+        let result = '';
+        dir.split('/').map(d => {
+            if (d !== '/' && !stringNullOrEmpty(d)) {
+                result += '/' + this.slug(d);
             }
-            return name.match(pattern);
-        }
-        if (this.storage.matcher?.available) {
-            const ret = this.storage.matcher.match(name, (pattern as string));
-            return ret;
-        }
-        return true;
+        });
+
+        return path.normalize(result).replace(/\\/g, '/');
     }
 
 }

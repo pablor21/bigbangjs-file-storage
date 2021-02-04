@@ -1,6 +1,5 @@
 import { storage001 } from "./suites/0001_storage";
-import { storageMethods002 } from "./suites/0002_storagemethods";
-import fs from 'fs-extra';
+import { directories002 } from "./suites/0002_directories";
 
 // describe('to delete', async () => {
 
@@ -13,5 +12,5 @@ describe('Runing tests', () => {
 
 
     storage001();
-    storageMethods002();
+    directories002();
 })

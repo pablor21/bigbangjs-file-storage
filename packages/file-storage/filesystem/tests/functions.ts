@@ -6,7 +6,7 @@ import fs from 'fs-extra';
 FileStorage.registerProviderType('fs', FilesystemProvider);
 
 
-export const rootPath = path.resolve('./test-storage/');
+export const rootPath = path.resolve('./private/test-storage/');
 
 
 
@@ -22,7 +22,7 @@ export async function generateStorage(testName: string) {
         root: path.join(rootPath, testName),
         type: 'fs'
     };
-    const urlProviderConfig01 = "fs://./test-storage/test02?name=provider02&mode=0777";
+    const urlProviderConfig01 = "fs://./private/test-storage/test02?name=provider02&mode=0777";
 
     await storage.addProvider('provider01', objProviderConfig01);
     await storage.addProvider('provider02', {

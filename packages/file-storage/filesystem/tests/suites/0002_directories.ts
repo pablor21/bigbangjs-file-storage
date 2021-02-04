@@ -6,12 +6,12 @@ beforeAll(async () => {
     fs.removeSync(rootPath)
 });
 afterAll(async () => {
-    //fs.removeSync(rootPath)
+    fs.removeSync(rootPath)
 });
 
 
 
-export const storageMethods002 = () => describe('Storage methods', () => {
+export const directories002 = () => describe('Siute 002', () => {
 
     test('Manipulate directories', async () => {
         const storage = (await generateBuckets('test02'));
@@ -86,7 +86,7 @@ export const storageMethods002 = () => describe('Storage methods', () => {
 
         (await dir.makeDirectory('/subdirectory_02/subdirectory_02_01'));
         // delete directories by pattern
-        expect((await bucket01.deleteDirectory('/test_01', {
+        expect((await bucket01.delete('/test_01', {
             pattern: '/*/subdirectory_*_01'
         })).result).toBe(true);
 

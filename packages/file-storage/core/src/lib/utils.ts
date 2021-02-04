@@ -78,3 +78,13 @@ export function resolveMime(fileName: string): string {
     }
     return 'unknown';
 }
+
+export function slug(input: string, replacement = '-'): string {
+    try {
+        const slugify = require('slugify');
+        return slugify(input, replacement);
+    } catch (e) {
+        // pass
+    }
+    return input;
+}

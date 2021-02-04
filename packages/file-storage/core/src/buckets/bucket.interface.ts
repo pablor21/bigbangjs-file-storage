@@ -1,7 +1,7 @@
 import { IStorageProvider } from '../providers';
 import { BucketConfigOptions } from './types';
 import { IDirectory, IFile, IFileEntry } from '../files';
-import { CopyDirectoryOptions, CreateDirectoryOptions, DeleteDirectoryOptions, DirectoryListOptions, FileEntryListOptions, FileListOptions, ListResult, MoveDirectoryOptions, StorageResponse } from '../types';
+import { Streams, CopyDirectoryOptions, CreateDirectoryOptions, DeleteFileEntryOptions, DirectoryListOptions, FileEntryListOptions, FileListOptions, ListResult, MoveDirectoryOptions, StorageResponse, CreateFileOptions, GetFileOptions } from '../types';
 
 export type BucketClassType<T extends IBucket> = new (provider: IStorageProvider, name: string, config?: any) => T;
 
@@ -36,7 +36,7 @@ export interface IBucket<ConfigType extends BucketConfigOptions = any, NativeRes
      * Removes a directory (empty or not)
      * @param dir the directory path (glob available) or directory
      */
-    deleteDirectory(dir: string | IDirectory, options?: DeleteDirectoryOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
+    delete(dir: string | IFileEntry, options?: DeleteFileEntryOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
     /**
      *
      * @param dir the directory path
@@ -71,6 +71,13 @@ export interface IBucket<ConfigType extends BucketConfigOptions = any, NativeRes
     listDirectories<RType extends ListResult<any>>(path?: string | IDirectory, options?: DirectoryListOptions): Promise<StorageResponse<RType, NativeResponseType>>;
 
     /**
+     * Obtains a directory instance
+     * @param bucket the target bucket
+     * @param path the directory path
+     */
+    getDirectory<Rtype extends IDirectory = IDirectory>(path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
+
+    /**
      * List all files in path
      * @param path the directory root path
      * @param options options
@@ -97,4 +104,40 @@ export interface IBucket<ConfigType extends BucketConfigOptions = any, NativeRes
      * @param returning return the info of the file or dir?
      */
     fileExists<RType extends IFile | boolean = any>(path: string | IFile, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>>;
+
+    /**
+     * Obtains a file instance
+     * @param bucket the target bucket
+     * @param path the file path
+     */
+    getFile<Rtype extends IFile = IFile>(path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
+
+    /**
+     * Obtains a file or directory instance
+     * @param bucket the target bucket
+     * @param path the file path
+     */
+    getEntry<Rtype extends IFileEntry = IFileEntry>(path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
+
+    /**
+     * Write a file
+     * @param fileName the path/fileName
+     * @param options the creation options
+     */
+    putFile<RType extends IFile | boolean = any>(fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+
+    /**
+     * Get a file stream
+     * @param fileName the path/fileName
+     * @param options options
+     */
+    getFileStream(fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, NativeResponseType>>;
+
+    /**
+     * Get a file contents as a buffer
+     * @param fileName the path/fileName
+     * @param options options
+     */
+    getFileContents(fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>>;
+
 }

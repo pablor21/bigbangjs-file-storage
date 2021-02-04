@@ -26,7 +26,7 @@ export abstract class AbstractFile<MetaType extends FileEntryMeta = FileEntryMet
     public async delete(): Promise<StorageResponse<boolean>> {
         let result;
         if (this.getType() === 'DIRECTORY') {
-            result = await this.bucket.deleteDirectory(this.getAbsolutePath());
+            result = await this.bucket.delete(this.getAbsolutePath());
         }
         this.meta.exists = false;
         return result;

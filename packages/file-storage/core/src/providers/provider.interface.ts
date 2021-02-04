@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import { FileStorage } from '../filestorage';
 import { BucketConfigOptions, IBucket } from '../buckets';
-import { Streams, CopyDirectoryOptions, CreateDirectoryOptions, CreateFileOptions, DirectoryListOptions, FileEntryListOptions, FileListOptions, GetFileOptions, ListResult, MoveDirectoryOptions, StorageResponse, DeleteDirectoryOptions } from '../types';
+import { Streams, CopyDirectoryOptions, CreateDirectoryOptions, CreateFileOptions, DirectoryListOptions, FileEntryListOptions, FileListOptions, GetFileOptions, ListResult, MoveDirectoryOptions, StorageResponse, DeleteFileEntryOptions } from '../types';
 import { IFileEntry, IDirectory, IFile } from '../files';
 
 export type StorageProviderClassType<T extends IStorageProvider> = new (storage: FileStorage, name: string, config: any) => T;
@@ -61,11 +61,11 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    */
   makeDirectory<RType extends IDirectory | boolean = any>(bucket: IBucket, path: string | IDirectory, options?: CreateDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
   /**
-   * Deletes a directory
+   * Deletes a file or directory
    * @param bucket the target bucket
-   * @param path the path or the directory
+   * @param path the path or the fileentry
    */
-  deleteDirectory(bucket: IBucket, path: string | IDirectory, options?: DeleteDirectoryOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
+  delete(bucket: IBucket, path: string | IFileEntry, options?: DeleteFileEntryOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
   /**
    * Deletes all files and subdirectories of a directory (keeping the directory itself)
    * @param bucket the target bucket
@@ -103,6 +103,12 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    */
   listDirectories<RType extends ListResult<any>>(bucket: IBucket, path: string | IDirectory, options?: DirectoryListOptions): Promise<StorageResponse<RType, NativeResponseType>>;
   /**
+   * Obtains a directory instance
+   * @param bucket the target bucket
+   * @param path the directory path
+   */
+  getDirectory<Rtype extends IDirectory = IDirectory>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
+  /**
    * Checks if a file exists (is an alias of exists with filter by file)
    * @param bucket the target bucket
    * @param path the file dir
@@ -117,6 +123,12 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    */
   exists<RType extends IFileEntry | boolean = any>(bucket: IBucket, path: string | IFileEntry, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>>;
   /**
+   * Obtains a file or directory instance
+   * @param bucket the target bucket
+   * @param path the file path
+   */
+  getEntry<Rtype extends IFileEntry = IFileEntry>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
+  /**
    * Lists files and directories
    * @param bucket the target bucket
    * @param path the path to list
@@ -130,38 +142,35 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    * @param options options
    */
   listFiles<RType extends ListResult<any>>(bucket: IBucket, path: string | IDirectory, options?: FileListOptions): Promise<StorageResponse<RType, NativeResponseType>>;
-
+  /**
+   * Obtains a file instance
+   * @param bucket the target bucket
+   * @param path the file path
+   */
+  getFile<Rtype extends IFile = IFile>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
 
   /**
    * Write a file
    * @param bucket the target bucket
-   * @param filename the path/filename
+   * @param fileName the path/fileName
    * @param options the creation options
    */
-  putFile<RType extends IFile | boolean = any>(bucket: IBucket, filename: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+  putFile<RType extends IFile | boolean = any>(bucket: IBucket, fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
 
   /**
    * Get a file stream
    * @param bucket the target bucket
-   * @param filename the path/filename
+   * @param fileName the path/fileName
    * @param options options
    */
-  getFileStream(bucket: IBucket, filename: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, NativeResponseType>>;
+  getFileStream(bucket: IBucket, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, NativeResponseType>>;
 
   /**
    * Get a file contents as a buffer
    * @param bucket the target bucket
-   * @param filename the path/filename
+   * @param fileName the path/fileName
    * @param options options
    */
-  getFileContents(bucket: IBucket, filename: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>>;
+  getFileContents(bucket: IBucket, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>>;
 
-  // putFile(bucket: IBucket, filename: string, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<boolean>;
-  // getFile(bucket: IBucket, filename: string, options?: GetFileOptions): Promise<Buffer>;
-  // getFileStream(bucket: IBucket, filename: string, options?: GetFileOptions): Promise<Streams.Readable>;
-  // copyFile(bucket: IBucket, src: string, dest: string): Promise<boolean>;
-  // moveFile(bucket: IBucket, src: string, dest: string): Promise<boolean>;
-  // deleteFile(bucket: IBucket, filename: string): Promise<boolean>;
-  // deleteFiles(bucket: IBucket, src: string, pattern?: string): Promise<string[]>;
-  // getFileInfo(bucket: IBucket, path: string): Promise<Directory>;
 }

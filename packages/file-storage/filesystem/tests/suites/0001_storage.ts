@@ -9,12 +9,12 @@ beforeAll(async () => {
     fs.removeSync(rootPath)
 });
 afterAll(async () => {
-    //fs.removeSync(rootPath)
+    fs.removeSync(rootPath)
 });
 
 
 
-export const storage001 = () => describe('Manipulate providers', () => {
+export const storage001 = () => describe('Suite 001', () => {
     const storage = new FileStorage({
         logger: false
     });
@@ -27,7 +27,7 @@ export const storage001 = () => describe('Manipulate providers', () => {
     };
 
     const urlProviderConfig01: FileSystemProviderConfig = {
-        uri: "fs://./test-storage/test02?mode=0777&name=provider02",
+        uri: "fs://./private/test-storage/test02?mode=0777&name=provider02",
     }
 
     test('Instantiate an provider from config', async () => {
