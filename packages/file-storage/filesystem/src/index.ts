@@ -1,1 +1,1 @@
-export * from './filesystem.adapter';
+export * from './filesystem.provider';

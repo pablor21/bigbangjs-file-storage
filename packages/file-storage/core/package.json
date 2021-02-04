@@ -1,11 +1,11 @@
 {
-	"name": "@bigbangjs/file-storage-core",
+	"name": "@bigbangjs/file-storage",
 	"version": "0.0.1",
 	"description": "File storage abstraction for nodejs",
 	"main": "dist/index.js",
 	"author": "Pablo Ramirez <pablor21@gmail.com>",
 	"license": "MIT",
-	"private": false,
+	"private": true,
 	"files": [
 		"index.js",
 		"index.d.ts",
@@ -16,6 +16,17 @@
 		"clean": "rimraf ./dist",
 		"compile": "tsc -p tsconfig.build.json"
 	},
-	"devDependencies": {},
-	"dependencies": {}
+	"peerDependencies": {
+		"mime": "^2.5.0",
+		"minimatch": "^3.0.4"
+	},
+	"devDependencies": {
+		"@types/minimatch": "^3.0.3",
+		"@types/readable-stream": "^2.3.9",
+		"mime": "^2.5.0",
+		"minimatch": "^3.0.4"
+	},
+	"dependencies": {
+		"readable-stream": "^3.6.0"
+	}
 }

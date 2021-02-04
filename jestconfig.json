@@ -6,6 +6,7 @@
     "<rootDir>/packages/*/src/**/*.ts"
   ],
   "moduleNameMapper": {
+    "@bigbangjs/file-storage": "<rootDir>/packages/file-storage/core/src",
     "@bigbangjs/file-storage-(.*)": "<rootDir>/packages/file-storage/$1/src"
   },
   "modulePathIgnorePatterns": [

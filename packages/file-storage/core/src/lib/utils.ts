@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 /**
  * Converts an octal number to string notation (0o777)="0777"
  * @param octal the number in octal
@@ -50,4 +51,30 @@ export function canRead(sourcePermissions: string | number) {
  */
 export function canWrite(sourcePermissions: string | number) {
     return checkPermission(2, sourcePermissions);
+}
+
+/**
+ * Check if an object or var is null or undefined
+ * @param obj the object
+ */
+export function objectNull(obj?: any): boolean {
+    return obj === undefined || obj === null;
+}
+
+/**
+ * Check if a string is empty or null or undefined
+ * @param string the target string
+ */
+export function stringNullOrEmpty(string?: string): boolean {
+    return objectNull(string) || string?.trim() === '';
+}
+
+export function resolveMime(fileName: string): string {
+    try {
+        const mime = require('mime');
+        return mime.getType(fileName);
+    } catch (e) {
+        // pass
+    }
+    return 'unknown';
 }

@@ -2,7 +2,7 @@
     "extends": "./tsconfig.build.json",
     "compilerOptions": {
         "paths": {
-            "@bigbangjs/file-storage-core": [
+            "@bigbangjs/file-storage": [
                 "./packages/file-storage/core/src"
             ],
             "@bigbangjs/file-storage-filesystem": [

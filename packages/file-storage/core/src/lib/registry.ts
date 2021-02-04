@@ -1,4 +1,4 @@
-import { StorageException, StorageExceptionType } from './exceptions';
+import { StorageException, StorageExceptionType } from '../exceptions';
 
 /**
  * Element registry for fast access with mirroring capacities
