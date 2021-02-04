@@ -10,6 +10,7 @@
 !.gitkeep
 .DS_Store
 /test-storage
+**/private
 
 
 
