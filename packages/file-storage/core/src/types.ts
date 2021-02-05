@@ -1,7 +1,7 @@
 import { IFileEntry } from './files';
 import { IStorageProvider } from './providers';
 import { IMatcher } from './lib';
-
+import { IBucket } from './buckets';
 export type ClassType<T> = new (...args: any[]) => T;
 
 export type Pattern = string | RegExp;
@@ -11,12 +11,10 @@ type ListOptions = {
      * Recursive? list subdirectories
      */
     recursive?: boolean;
-
     /**
      * Return a IFileEntry or just the names?
      */
     returning?: boolean;
-
     /**
      * Max results to return
      */
@@ -33,7 +31,6 @@ type ListOptions = {
      * Function to apply on every src entry should return true if should be returning or false otherwise
      */
     filter?: (name: string, path: string, type: 'DIRECTORY' | 'FILE') => boolean | Promise<boolean>;
-
     /**
      * Options passed to the native driver (for example, in aws this should be the continuation token)
      */
@@ -130,6 +127,23 @@ export type CopyDirectoryOptions = {
     filter?: ((src: string, dest: string) => boolean) | ((src: string, dest: string) => Promise<boolean>);
 };
 
+export type CopyFileOptions = {
+    /**
+     * Should return a FileInfo?
+     */
+    returning?: boolean;
+    /**
+     * Permissions
+     */
+    permissions?: string | number;
+    /**
+     * Overwrite if exist or throw an error?
+     */
+    overwrite?: boolean;
+};
+
+export type MoveFileOptions = CopyFileOptions;
+
 export type GetFileOptions = {
     start?: number;
     end?: number;
@@ -167,6 +181,16 @@ export type FileStorageConfigOptions = {
      * Slug function
      */
     slugFn?: (input: string, replacement?: string) => string;
+
+    /**
+     * File url generator
+     */
+    urlGenerator?: (uri: string, options?: any) => Promise<string>;
+
+    /**
+     * Signed url generator
+     */
+    signedUrlGenerator?: (uri: string, options?: any) => Promise<string>;
 
     /**
      * Function to obtain a regex based on glob pattern
@@ -212,6 +236,12 @@ export type DeleteFileOptions = {
     filter?: (name: string, path: string, type: 'DIRECTORY' | 'FILE') => boolean | Promise<boolean>;
 };
 
+export type ResolveUriReturn = {
+    provider: IStorageProvider;
+    bucket: IBucket;
+    path: string;
+};
+
 // Stream implementation
-import stream = require('readable-stream');
+import * as stream from 'stream';
 export { stream as Streams };

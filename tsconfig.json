@@ -7,6 +7,9 @@
             ],
             "@bigbangjs/file-storage-filesystem": [
                 "./packages/file-storage/filesystem/src"
+            ],
+            "@bigbangjs/file-storage-s3": [
+                "./packages/file-storage/s3/src"
             ]
         }
     },

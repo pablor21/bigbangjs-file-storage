@@ -5,16 +5,20 @@ import { FilesystemProvider, FileSystemProviderConfig, FileSystemBucketConfig } 
 import { generateBuckets, generateStorage, rootPath } from '../functions';
 
 
-beforeAll(async () => {
-    fs.removeSync(rootPath)
-});
-afterAll(async () => {
-    fs.removeSync(rootPath)
-});
 
 
+export const storage001 = (autoRemove = true) => describe('Suite 001', () => {
 
-export const storage001 = () => describe('Suite 001', () => {
+    if (autoRemove) {
+        beforeAll(async () => {
+            fs.removeSync(rootPath)
+        });
+        afterAll(async () => {
+            fs.removeSync(rootPath)
+        });
+    }
+
+
     const storage = new FileStorage({
         logger: false
     });

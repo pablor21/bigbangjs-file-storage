@@ -1,5 +1,6 @@
 import { storage001 } from "./suites/0001_storage";
 import { directories002 } from "./suites/0002_directories";
+import { files003 } from "./suites/0003_files";
 
 // describe('to delete', async () => {
 
@@ -10,7 +11,8 @@ import { directories002 } from "./suites/0002_directories";
 
 describe('Runing tests', () => {
 
-
-    storage001();
-    directories002();
+    const autoRemove = true;
+    storage001(autoRemove);
+    directories002(autoRemove);
+    files003(autoRemove);
 })

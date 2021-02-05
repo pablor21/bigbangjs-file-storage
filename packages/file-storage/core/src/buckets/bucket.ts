@@ -1,4 +1,4 @@
-import { CreateDirectoryOptions, MoveDirectoryOptions, CopyDirectoryOptions, StorageResponse, ListResult, DirectoryListOptions, FileEntryListOptions, FileListOptions, DeleteFileEntryOptions, GetFileOptions, Streams, CreateFileOptions } from '../types';
+import { CreateDirectoryOptions, MoveDirectoryOptions, CopyDirectoryOptions, StorageResponse, ListResult, DirectoryListOptions, FileEntryListOptions, FileListOptions, DeleteFileEntryOptions, GetFileOptions, Streams, CreateFileOptions, CopyFileOptions } from '../types';
 import { canRead, canWrite } from '../lib';
 import { IBucket } from './bucket.interface';
 import { BucketConfigOptions } from './types';
@@ -31,7 +31,7 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         return canWrite(this.config.mode);
     }
 
-    public async makeDirectory<RType extends IDirectory | boolean = any>(dir: string | IDirectory, options?: CreateDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async makeDirectory<RType extends IDirectory | string = any>(dir: string | IDirectory, options?: CreateDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.makeDirectory(this, dir, options);
     }
 
@@ -43,11 +43,11 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         return this.provider.emptyDirectory(this, dir);
     }
 
-    public async moveDirectory<RType extends IDirectory | boolean = any>(src: string | IDirectory, dest: string | IDirectory, options?: MoveDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async moveDirectory<RType extends IDirectory | string = any>(src: string | IDirectory, dest: string | IDirectory, options?: MoveDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.moveDirectory(this, src, dest, options);
     }
 
-    public async copyDirectory<RType extends IDirectory | boolean = any>(src: string | IDirectory, dest: string | IDirectory, options?: CopyDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async copyDirectory<RType extends IDirectory | string = any>(src: string | IDirectory, dest: string | IDirectory, options?: CopyDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.copyDirectory(this, src, dest, options);
     }
 
@@ -76,7 +76,7 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         return this.provider.fileExists(this, path, returning);
     }
 
-    public async putFile<RType extends IFile | boolean = any>(fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async putFile<RType extends IFile | string = any>(fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.putFile(this, fileName, contents, options);
     }
 
@@ -97,8 +97,27 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
     }
 
     public async getEntry<Rtype extends IFileEntry = IFileEntry>(path: string): Promise<StorageResponse<Rtype, NativeResponseType>> {
-        return this.provider.getEntry(this, path);
+        return this.provider.getFileEntry(this, path);
     }
 
+    public getStorageUri(fileName: string | IFileEntry): string {
+        return this.provider.getStorageUri(this, fileName);
+    }
+
+    public async getPublicUrl(fileName: string | IFileEntry, options?: any): Promise<string> {
+        return this.provider.getPublicUrl(this, fileName, options);
+    }
+
+    public async getSignedUrl(fileName: string | IFileEntry, options?: any): Promise<string> {
+        return this.provider.getSignedUrl(this, fileName, options);
+    }
+
+    public async copyFile<RType extends string | IFile = any>(src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+        return this.provider.copyFile(this, src, dest, options);
+    }
+
+    public async moveFile<RType extends string | IFile = any>(src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+        return this.provider.moveFile(this, src, dest, options);
+    }
 
 }

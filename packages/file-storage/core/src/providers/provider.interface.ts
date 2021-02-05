@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import { FileStorage } from '../filestorage';
 import { BucketConfigOptions, IBucket } from '../buckets';
-import { Streams, CopyDirectoryOptions, CreateDirectoryOptions, CreateFileOptions, DirectoryListOptions, FileEntryListOptions, FileListOptions, GetFileOptions, ListResult, MoveDirectoryOptions, StorageResponse, DeleteFileEntryOptions } from '../types';
+import { Streams, CopyDirectoryOptions, CreateDirectoryOptions, CreateFileOptions, DirectoryListOptions, FileEntryListOptions, FileListOptions, GetFileOptions, ListResult, MoveDirectoryOptions, StorageResponse, DeleteFileEntryOptions, CopyFileOptions, MoveFileOptions } from '../types';
 import { IFileEntry, IDirectory, IFile } from '../files';
 
 export type StorageProviderClassType<T extends IStorageProvider> = new (storage: FileStorage, name: string, config: any) => T;
@@ -58,8 +58,9 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    * @param bucket the target bucket
    * @param path the path
    * @param options the creation options
+   * @returns the directory object if options.returning is true, the full uri otherwhise
    */
-  makeDirectory<RType extends IDirectory | boolean = any>(bucket: IBucket, path: string | IDirectory, options?: CreateDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+  makeDirectory<RType extends IDirectory | string = any>(bucket: IBucket, path: string | IDirectory, options?: CreateDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
   /**
    * Deletes a file or directory
    * @param bucket the target bucket
@@ -78,21 +79,24 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    * @param src the source path
    * @param dest the destination path
    * @param options move options
+   * @returns the directory object if options.returning is true, the full uri otherwhise
    */
-  moveDirectory<RType extends IDirectory | boolean = any>(bucket: IBucket, src: string | IDirectory, dest: string | IDirectory, options?: MoveDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+  moveDirectory<RType extends IDirectory | string = any>(bucket: IBucket, src: string | IDirectory, dest: string | IDirectory, options?: MoveDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
   /**
    * Copy a directory inside a bucket
    * @param bucket the target bucket
    * @param src the source path
    * @param dest the destination path
    * @param options copy options
+   * @returns the directory object if options.returning is true, the full uri otherwhise
    */
-  copyDirectory<RType extends IDirectory | boolean = any>(bucket: IBucket, src: string | IDirectory, dest: string | IDirectory, options?: CopyDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+  copyDirectory<RType extends IDirectory | string = any>(bucket: IBucket, src: string | IDirectory, dest: string | IDirectory, options?: CopyDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
   /**
    * Checks if a directory exists (is an alias of exists with filter by directory)
    * @param bucket the target bucket
    * @param path the directory path
    * @param returning return the info of the directory?
+   * @returns The directory object if returning is true, a boolean otherwhise
    */
   directoryExists<RType extends IDirectory | boolean = any>(bucket: IBucket, path: string | IDirectory, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>>;
   /**
@@ -113,6 +117,7 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    * @param bucket the target bucket
    * @param path the file dir
    * @param returning return the info of the file?
+   * @returns The file object if returning is true, a boolean otherwhise
    */
   fileExists<RType extends IFile | boolean = any>(bucket: IBucket, path: string | IFile, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>>;
   /**
@@ -120,6 +125,7 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    * @param bucket the bucket
    * @param path the  path
    * @param returning return the info of the file or dir?
+   * @returns The file entry object if returning is true, a boolean otherwhise
    */
   exists<RType extends IFileEntry | boolean = any>(bucket: IBucket, path: string | IFileEntry, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>>;
   /**
@@ -127,7 +133,7 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    * @param bucket the target bucket
    * @param path the file path
    */
-  getEntry<Rtype extends IFileEntry = IFileEntry>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
+  getFileEntry<Rtype extends IFileEntry = IFileEntry>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
   /**
    * Lists files and directories
    * @param bucket the target bucket
@@ -154,8 +160,9 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    * @param bucket the target bucket
    * @param fileName the path/fileName
    * @param options the creation options
+   * @returns The file object if returning is true, the file uri otherwhise
    */
-  putFile<RType extends IFile | boolean = any>(bucket: IBucket, fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+  putFile<RType extends IFile | string = any>(bucket: IBucket, fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
 
   /**
    * Get a file stream
@@ -172,5 +179,49 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    * @param options options
    */
   getFileContents(bucket: IBucket, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>>;
+
+  /**
+   * Copy a file
+   * @param bucket the bucket
+   * @param src the file entry or the path
+   * @param dest the destination file entry or the path
+   * @param options the copy options
+   * @returns The file object if returning is true, the file uri otherwhise
+   */
+  copyFile<RType extends IFile | string = any>(bucket: IBucket, src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+
+  /**
+   * Move a file
+   * @param bucket the bucket
+   * @param src the file entry or the path
+   * @param dest the destination file entry or the path
+   * @param options the move options
+   * @returns The file object if returning is true, the file uri otherwhise
+   */
+  moveFile<RType extends IFile | string = any>(bucket: IBucket, src: string | IFile, dest: string | IFile, options?: MoveFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+
+  /**
+   * Returns the uri for the file/directory
+   * @param bucket the bucket
+   * @param fileName the filename
+   */
+  getStorageUri(bucket: IBucket, fileName: string | IFileEntry): string;
+
+  /**
+   * Get the file/directory url
+   * @param bucket the therget bucket
+   * @param fileName the file/directory name
+   * @param options options
+   */
+  getPublicUrl(bucket: IBucket, fileName: string | IFileEntry, options?: any): Promise<string>;
+
+  /**
+   * Get the file/directory signed url
+   * @param bucket the therget bucket
+   * @param fileName the file/directory name
+   * @param options options
+   */
+  getSignedUrl(bucket: IBucket, fileName: string | IFileEntry, options?: any): Promise<string>;
+
 
 }

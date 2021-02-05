@@ -2,16 +2,18 @@ import { Bucket, Directory, ListResult } from '@bigbangjs/file-storage';
 import fs from 'fs-extra';
 import { generateBuckets, rootPath } from '../functions';
 
-beforeAll(async () => {
-    fs.removeSync(rootPath)
-});
-afterAll(async () => {
-    fs.removeSync(rootPath)
-});
 
+export const directories002 = (autoRemove=true) => describe('Siute 002', () => {
 
+    if (autoRemove) {
+        beforeAll(async () => {
+            fs.removeSync(rootPath)
+        });
+        afterAll(async () => {
+            fs.removeSync(rootPath)
+        });
+    }
 
-export const directories002 = () => describe('Siute 002', () => {
 
     test('Manipulate directories', async () => {
         const storage = (await generateBuckets('test02'));

@@ -1,9 +1,10 @@
 import { IBucket } from './buckets';
 import { StorageEventType } from './eventnames';
 import { StorageException, StorageExceptionType } from './exceptions';
+import { IDirectory, IFile, IFileEntry } from './files/file.interface';
 import { objectNull, Registry, resolveMime, stringNullOrEmpty, DefaultMatcher, IMatcher, slug } from './lib';
 import { IStorageProvider, ProviderConfigOptions, StorageProviderClassType } from './providers';
-import { AddProviderOptions, FileStorageConfigOptions, LoggerType, StorageResponse } from './types';
+import { AddProviderOptions, FileStorageConfigOptions, LoggerType, ResolveUriReturn, StorageResponse } from './types';
 
 
 const defaultConfigOptions: FileStorageConfigOptions = {
@@ -181,21 +182,101 @@ export class FileStorage {
         return this.buckets.get(name);
     }
 
+    /**
+     * Generate a uri for a file or directory
+     * @param provider the provider
+     * @param bucket the bucket
+     * @param fileName the filename
+     */
+    public makeFileUri(provider: IStorageProvider | string, bucket: IBucket | string, fileName?: string | IFileEntry) {
+        let url = '';
+        if (typeof (provider) === 'string') {
+            provider = this.getProvider(provider);
+        }
+        url += provider.name + '://';
 
-    protected createProviderInstance(ctor: StorageProviderClassType<IStorageProvider>, name: string, config: any): IStorageProvider {
-        return new ctor(this, name, config);
+        if (typeof (bucket) === 'string') {
+            bucket = provider.getBucket(bucket);
+        }
+        url += bucket.name;
+
+        if (fileName) {
+            if (typeof (fileName) === 'string') {
+                url += fileName;
+            } else {
+                url += fileName.getAbsolutePath();
+            }
+        }
+        return url;
     }
 
-    protected addListenersToProvider(provider: IStorageProvider) {
-        provider.on(StorageEventType.BUCKET_ADDED, (bucket: IBucket) => {
-            this.buckets.add(bucket.absoluteName, bucket);
-        });
-        provider.on(StorageEventType.BUCKET_REMOVED, (bucket: IBucket) => {
-            this.buckets.remove(bucket.absoluteName);
-        });
-        provider.on(StorageEventType.BUCKET_DESTROYED, (bucket: IBucket) => {
-            this.buckets.remove(bucket.absoluteName);
-        });
+
+    /**
+     * Returns a file  from it's uri
+     * @param uri the file or directory uri
+     */
+    public async getFile<T extends IFile = IFile>(uri: string): Promise<StorageResponse<IFile>> {
+        const parameters = this.resolveFileUri(uri);
+        if (parameters) {
+            return parameters.bucket.getFile<T>(uri);
+        }
+        return undefined;
+    }
+
+    /**
+     * Returns a file  from it's uri
+     * @param uri the file or directory uri
+     */
+    public async getDirectory<T extends IDirectory = IDirectory>(uri: string): Promise<StorageResponse<IDirectory>> {
+        const parameters = this.resolveFileUri(uri);
+        if (parameters) {
+            return parameters.bucket.getDirectory<T>(uri);
+        }
+        return undefined;
+    }
+
+
+    /**
+     * Returns a file or directory from it's uri
+     * @param uri the file or directory uri
+     */
+    public async getFileEntry<T extends IFileEntry = IFileEntry>(uri: string): Promise<StorageResponse<IFileEntry>> {
+        const parameters = this.resolveFileUri(uri);
+        if (parameters) {
+            return parameters.bucket.getEntry<T>(uri);
+        }
+        return undefined;
+    }
+
+    /**
+     * Given a file/directory uri, gets the provider, bucket and path
+     * @param uri the uri
+     */
+    public resolveFileUri(uri: string): ResolveUriReturn | false {
+        try {
+            const parsedUrl = new URL(uri);
+            if (parsedUrl) {
+                const providerName = parsedUrl.protocol.replace(':', '');
+                const provider = this.getProvider(providerName);
+                if (objectNull(provider)) {
+                    return false;
+                }
+                const bucketName = parsedUrl.host;
+                const bucket = this.getBucket(bucketName);
+                if (objectNull(bucket)) {
+                    return false;
+                }
+                const path = parsedUrl.pathname;
+                return {
+                    provider,
+                    bucket,
+                    path,
+                };
+            }
+            return false;
+        } catch (ex) {
+            return false;
+        }
     }
 
     /**
@@ -239,5 +320,43 @@ export class FileStorage {
         }
         return true;
     }
+
+
+    public async getPublicUrl(fileUri: string | IFileEntry, options?: any): Promise<string> {
+        if (typeof (this.config.urlGenerator) === 'function') {
+            if (typeof (fileUri) !== 'string') {
+                fileUri = this.makeFileUri(fileUri.bucket.provider, fileUri.bucket, fileUri.getAbsolutePath());
+            }
+            return this.config.urlGenerator(fileUri, options);
+        }
+        return undefined;
+    }
+
+    public async getSignedUrl(fileUri: string | IFileEntry, options?: any): Promise<string> {
+        if (typeof (this.config.signedUrlGenerator) === 'function') {
+            if (typeof (fileUri) !== 'string') {
+                fileUri = this.makeFileUri(fileUri.bucket.provider, fileUri.bucket, fileUri.getAbsolutePath());
+            }
+            return this.config.signedUrlGenerator(fileUri, options);
+        }
+        return undefined;
+    }
+
+    protected createProviderInstance(ctor: StorageProviderClassType<IStorageProvider>, name: string, config: any): IStorageProvider {
+        return new ctor(this, name, config);
+    }
+
+    protected addListenersToProvider(provider: IStorageProvider) {
+        provider.on(StorageEventType.BUCKET_ADDED, (bucket: IBucket) => {
+            this.buckets.add(bucket.absoluteName, bucket);
+        });
+        provider.on(StorageEventType.BUCKET_REMOVED, (bucket: IBucket) => {
+            this.buckets.remove(bucket.absoluteName);
+        });
+        provider.on(StorageEventType.BUCKET_DESTROYED, (bucket: IBucket) => {
+            this.buckets.remove(bucket.absoluteName);
+        });
+    }
+
 
 }
