@@ -3,7 +3,11 @@
 	"version": "0.0.1",
 	"description": "File storage abstraction for nodejs",
 	"main": "dist/index.js",
-	"author": "Pablo Ramirez <pablor21@gmail.com>",
+	"author": {
+		"name": "Pablo Ramirez",
+		"email": "me@pjramirez.com",
+		"url": "https://pjramirez.com"
+	},
 	"license": "MIT",
 	"private": true,
 	"files": [
@@ -16,19 +20,20 @@
 		"clean": "rimraf ./dist",
 		"compile": "tsc -p tsconfig.build.json"
 	},
-	"peerDependencies": {
+	"optionalDependencies": {
 		"mime": "^2.5.0",
 		"minimatch": "^3.0.4",
 		"slugify": "^1.4.6"
 	},
 	"devDependencies": {
 		"@types/minimatch": "^3.0.3",
-		"@types/readable-stream": "^2.3.9",
 		"mime": "^2.5.0",
 		"minimatch": "^3.0.4",
 		"slugify": "^1.4.6"
 	},
 	"dependencies": {
-		"readable-stream": "^3.6.0"
+	},
+	"publishConfig": {
+		"access": "public"
 	}
 }

@@ -2,6 +2,11 @@
   "name": "bigbangjs",
   "private": true,
   "version": "0.0.1",
+  "author": {
+    "name": "Pablo Ramirez",
+    "email": "me@pjramirez.com",
+    "url": "https://pjramirez.com"
+  },
   "workspaces": [
     "packages/**"
   ],
@@ -30,5 +35,8 @@
     "lint": "eslint packages/**/src/*.ts",
     "test": "jest --config jestconfig.json --runInBand",
     "build": "lerna run build"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

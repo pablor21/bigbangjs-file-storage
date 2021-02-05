@@ -24,8 +24,10 @@ import {
     File,
     stringNullOrEmpty,
     ListResult,
+    DirectoryListOptions,
     FileEntryListOptions,
     FileEntryMeta,
+    FileListOptions,
     Streams,
     CreateFileOptions,
     GetFileOptions,
@@ -34,15 +36,15 @@ import {
     CopyFileOptions
 } from "@bigbangjs/file-storage";
 
-export type FileSystemProviderConfig = {
+export type S3ProviderConfig = {
     root?: string;
 } & ProviderConfigOptions;
 
-const defaultConfig: FileSystemProviderConfig = {
+const defaultConfig: S3ProviderConfig = {
     //root: path.join(process.cwd(), 'storage')
 };
 
-export type FileSystemBucketConfig = {
+export type S3BucketConfig = {
     root: string;
 } & BucketConfigOptions;
 
@@ -50,10 +52,10 @@ export type FileSystemNativeResponse = {
 
 }
 
-export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfig, FileSystemBucketConfig, FileSystemNativeResponse> implements IStorageProvider<FileSystemBucketConfig, FileSystemNativeResponse>{
+export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfig, FileSystemNativeResponse> implements IStorageProvider<S3BucketConfig, FileSystemNativeResponse>{
 
-    public readonly type: string = 'FILESYSTEM';
-    constructor(storage: FileStorage, name: string, config: string | FileSystemProviderConfig = defaultConfig) {
+    public readonly type: string = 'S3';
+    constructor(storage: FileStorage, name: string, config: string | S3ProviderConfig = defaultConfig) {
         super(storage, name, config);
         this.validateOptions();
     }
@@ -64,17 +66,17 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         }
     }
 
-    protected parseConfig(config: string | FileSystemProviderConfig): FileSystemProviderConfig {
+    protected parseConfig(config: string | S3ProviderConfig): S3ProviderConfig {
         const ret = {};
         if (typeof (config) === 'string') {
-            Object.assign(ret, defaultConfig, FilesystemProvider.parseUriToOptions(config));
+            Object.assign(ret, defaultConfig, S3Provider.parseUriToOptions(config));
         } else {
             Object.assign(ret, defaultConfig, config);
             if (typeof (config.uri) === 'string') {
-                Object.assign(ret, FilesystemProvider.parseUriToOptions(config.uri));
+                Object.assign(ret, S3Provider.parseUriToOptions(config.uri));
             }
         }
-        return ret as FileSystemProviderConfig;
+        return ret as S3ProviderConfig;
     }
 
 
@@ -85,8 +87,8 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         throw new StorageException(type, ex.message, ex);
     }
 
-    public static parseUriToOptions(uri: string): FileSystemProviderConfig {
-        const ret: FileSystemProviderConfig = defaultConfig;
+    public static parseUriToOptions(uri: string): S3ProviderConfig {
+        const ret: S3ProviderConfig = defaultConfig;
         const parsedUrl = new URL(uri);
 
         if (parsedUrl.searchParams.has('mode')) {
@@ -114,7 +116,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         return this.makeResponse(true);
     }
 
-    public async addBucket(name: string, config?: FileSystemBucketConfig): Promise<StorageResponse<IBucket, FileSystemNativeResponse>> {
+    public async addBucket(name: string, config?: S3BucketConfig): Promise<StorageResponse<IBucket, FileSystemNativeResponse>> {
         await this.makeReady();
         this.emit(StorageEventType.BEFORE_ADD_BUCKET, config);
         const alias = await this.resolveBucketAlias(name);
@@ -159,19 +161,19 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
     }
 
 
-    public async listUnregisteredBuckets(creationOptions?: BucketConfigOptions): Promise<StorageResponse<FileSystemBucketConfig[], FileSystemNativeResponse>> {
+    public async listUnregisteredBuckets(creationOptions?: BucketConfigOptions): Promise<StorageResponse<S3BucketConfig[], FileSystemNativeResponse>> {
         await this.makeReady();
         try {
             const options = Object.assign({}, {
                 mode: '0777'
             }, creationOptions);
-            const ret: FileSystemBucketConfig[] = [];
+            const ret: S3BucketConfig[] = [];
             const registerdBuckets = (await this.listBuckets()).result;
             const allBuckets = (await fs.readdir(this.config.root, { withFileTypes: true })).filter((v) => {
                 return v.isDirectory();
             });
             allBuckets.map(f => {
-                const candidate = registerdBuckets.filter(b => (b.config as FileSystemBucketConfig).root === f.name).length === 0;
+                const candidate = registerdBuckets.filter(b => (b.config as S3BucketConfig).root === f.name).length === 0;
                 if (candidate) {
                     ret.push({
                         name: f.name,
@@ -391,6 +393,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
 
         // ensure directory
         const parts = absPath.split('/');
+        const file = parts.pop();
         await fs.mkdirs(this.normalizePath(parts.join('/')));
 
         const writeStream = fs.createWriteStream(absPath);
@@ -493,6 +496,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             relativePath = src;
         }
 
+        const srcParts = src.split('/');
         const relativePathParts = relativePath.split('/');
         let path = relativePathParts.slice(0, relativePathParts.length - 1).join('/');
         if (stringNullOrEmpty(path)) {

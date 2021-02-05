@@ -34,11 +34,11 @@ import {
     CopyFileOptions
 } from "@bigbangjs/file-storage";
 
-export type FileSystemProviderConfig = {
+export type GCSProviderConfig = {
     root?: string;
 } & ProviderConfigOptions;
 
-const defaultConfig: FileSystemProviderConfig = {
+const defaultConfig: GCSProviderConfig = {
     //root: path.join(process.cwd(), 'storage')
 };
 
@@ -50,10 +50,10 @@ export type FileSystemNativeResponse = {
 
 }
 
-export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfig, FileSystemBucketConfig, FileSystemNativeResponse> implements IStorageProvider<FileSystemBucketConfig, FileSystemNativeResponse>{
+export class GCSProvider extends AbstractProvider<GCSProviderConfig, FileSystemBucketConfig, FileSystemNativeResponse> implements IStorageProvider<FileSystemBucketConfig, FileSystemNativeResponse>{
 
-    public readonly type: string = 'FILESYSTEM';
-    constructor(storage: FileStorage, name: string, config: string | FileSystemProviderConfig = defaultConfig) {
+    public readonly type: string = 'GCS';
+    constructor(storage: FileStorage, name: string, config: string | GCSProviderConfig = defaultConfig) {
         super(storage, name, config);
         this.validateOptions();
     }
@@ -64,17 +64,17 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         }
     }
 
-    protected parseConfig(config: string | FileSystemProviderConfig): FileSystemProviderConfig {
+    protected parseConfig(config: string | GCSProviderConfig): GCSProviderConfig {
         const ret = {};
         if (typeof (config) === 'string') {
-            Object.assign(ret, defaultConfig, FilesystemProvider.parseUriToOptions(config));
+            Object.assign(ret, defaultConfig, GCSProvider.parseUriToOptions(config));
         } else {
             Object.assign(ret, defaultConfig, config);
             if (typeof (config.uri) === 'string') {
-                Object.assign(ret, FilesystemProvider.parseUriToOptions(config.uri));
+                Object.assign(ret, GCSProvider.parseUriToOptions(config.uri));
             }
         }
-        return ret as FileSystemProviderConfig;
+        return ret as GCSProviderConfig;
     }
 
 
@@ -85,8 +85,8 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         throw new StorageException(type, ex.message, ex);
     }
 
-    public static parseUriToOptions(uri: string): FileSystemProviderConfig {
-        const ret: FileSystemProviderConfig = defaultConfig;
+    public static parseUriToOptions(uri: string): GCSProviderConfig {
+        const ret: GCSProviderConfig = defaultConfig;
         const parsedUrl = new URL(uri);
 
         if (parsedUrl.searchParams.has('mode')) {
@@ -418,9 +418,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         }
 
         const result = await promise;
-        let ret = result;
         if (this.shouldReturnObject(options?.returning)) {
-            ret = this.generateFileObject(bucket, fileName);
         }
         return this.makeResponse(this.storage.makeFileUri(this, bucket, this.convertAbsolutePathToBucketPath(bucket, absPath)));
     }

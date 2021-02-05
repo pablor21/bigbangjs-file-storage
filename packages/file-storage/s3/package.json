@@ -1,7 +1,7 @@
 {
-	"name": "@bigbangjs/file-storage-filesystem",
+	"name": "@bigbangjs/file-storage-s3",
 	"version": "0.0.1",
-	"description": "Local filesystem adapter for @bigbangjs/file-storage",
+	"description": "Amazon S3 adapter for @bigbangjs/file-storage",
 	"main": "dist/index.js",
 	"files": [
 		"index.js",
@@ -20,8 +20,7 @@
 		"compile": "tsc -p tsconfig.build.json"
 	},
 	"devDependencies": {
-		"@bigbangjs/file-storage": "^0.0.1",
-		"@types/fs-extra": "^9.0.6"
+		"@bigbangjs/file-storage": "^0.0.1"
 	},
 	"peerDependencies": {
 		"@bigbangjs/file-storage": "^0.0.1"

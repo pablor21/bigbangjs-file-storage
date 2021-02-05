@@ -10,6 +10,9 @@
             ],
             "@bigbangjs/file-storage-s3": [
                 "./packages/file-storage/s3/src"
+            ],
+            "@bigbangjs/file-storage-gcs": [
+                "./packages/file-storage/gcs/src"
             ]
         }
     },

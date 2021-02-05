@@ -1,7 +1,7 @@
 {
-	"name": "@bigbangjs/file-storage-filesystem",
+	"name": "@bigbangjs/file-storage-gcs",
 	"version": "0.0.1",
-	"description": "Local filesystem adapter for @bigbangjs/file-storage",
+	"description": "Google Cloud Storage adapter for @bigbangjs/file-storage",
 	"main": "dist/index.js",
 	"files": [
 		"index.js",
