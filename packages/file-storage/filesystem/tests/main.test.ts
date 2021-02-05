@@ -9,7 +9,7 @@ import { suite002 } from "./suites/0002_files";
 
 
 describe('Runing tests', () => {
-    const autoRemove = false;
+    const autoRemove = true;
     suite001(autoRemove);
     suite002(autoRemove);
 })
