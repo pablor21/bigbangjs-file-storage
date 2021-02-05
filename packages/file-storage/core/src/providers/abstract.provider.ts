@@ -5,10 +5,10 @@ import { StorageException, StorageExceptionType } from '../exceptions';
 import { FileStorage } from '../filestorage';
 import { StorageEventType } from '../eventnames';
 import { objectNull, Registry, stringNullOrEmpty } from '../lib';
-import { CopyDirectoryOptions, CopyFileOptions, CreateDirectoryOptions, CreateFileOptions, DeleteFileEntryOptions, DirectoryListOptions, FileEntryListOptions, FileListOptions, GetFileOptions, ListResult, MoveDirectoryOptions, Pattern, StorageResponse, Streams } from '../types';
+import { CopyFileOptions, CopyManyFilesOptions, CreateFileOptions, DeleteFileOptions, DeleteManyFilesOptions, GetFileOptions, ListFilesOptions, ListResult, MoveFileOptions, MoveManyFilesOptions, Pattern, StorageResponse, Streams } from '../types';
 import { IStorageProvider } from './provider.interface';
 import { ProviderConfigOptions } from './types';
-import { IFileEntry, IDirectory, IFile } from '../files';
+import { IFile } from '../files';
 
 
 export abstract class AbstractProvider<ProviderConfigType extends ProviderConfigOptions, BucketConfigType extends BucketConfigOptions, NativeResponseType = any> extends EventEmitter implements IStorageProvider<BucketConfigType, NativeResponseType> {
@@ -60,95 +60,37 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         return this.makeResponse(this._buckets.list());
     }
 
-    public async directoryExists<RType extends IDirectory | boolean = any>(bucket: IBucket, path: string | IDirectory, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>> {
-        await this.makeReady();
-        const exists = await this.exists<RType>(bucket, path, true);
-        if (!exists.result) {
-            return this.makeResponse(false, exists.nativeResponse);
-        }
-        if (exists.result && (exists.result as IDirectory).getType() !== 'DIRECTORY') {
-            return this.makeResponse(false, exists.nativeResponse);
-        }
-
-        if (returning) {
-            return this.makeResponse(exists.result, exists.nativeResponse);
-        }
-        return this.makeResponse(true, exists.nativeResponse);
-
-    }
-
-
-    public async fileExists<RType extends IFile | boolean = any>(bucket: IBucket, path: string | IFile, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>> {
-        await this.makeReady();
-        const exists = await this.exists<RType>(bucket, path, true);
-
-        if (!exists.result) {
-            return this.makeResponse(false, exists.nativeResponse);
-        }
-
-        if (exists.result && (exists.result as IFile).getType() !== 'FILE') {
-            return this.makeResponse(false, exists.nativeResponse);
-        }
-
-        if (returning) {
-            return this.makeResponse(exists.result, exists.nativeResponse);
-        }
-        return this.makeResponse(true, exists.nativeResponse);
-    }
-
-    public async listDirectories<RType extends ListResult<any>>(bucket: IBucket, path: string | IDirectory, options?: DirectoryListOptions): Promise<StorageResponse<RType, NativeResponseType>> {
-        options = options || {};
-        (options as FileEntryListOptions).type = 'DIRECTORY';
-        return this.list(bucket, path, options as FileEntryListOptions);
-    }
-
-    public async listFiles<RType extends ListResult<any>>(bucket: IBucket, path: string | IDirectory, options?: FileListOptions): Promise<StorageResponse<RType, NativeResponseType>> {
-        options = options || {};
-        (options as FileEntryListOptions).type = 'FILE';
-        return this.list(bucket, path, options as FileEntryListOptions);
-    }
-
     public async getFile<Rtype extends IFile = IFile>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>> {
-        const info = await this.getFileEntry(bucket, path);
-        if (info.result && info.result.getType() === 'FILE') {
-            return this.makeResponse(info.result, info.nativeResponse);
-        }
-        return this.makeResponse(undefined);
-    }
-
-    public async getDirectory<Rtype extends IDirectory = IDirectory>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>> {
-        const info = await this.getFileEntry(bucket, path);
-        if (info.result && info.result.getType() === 'DIRECTORY') {
-            return this.makeResponse(info.result, info.nativeResponse);
-        }
-        return this.makeResponse(undefined);
-    }
-
-    public async exists<RType extends IFileEntry | boolean = any>(bucket: IBucket, path: string | IFileEntry, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>> {
-        path = typeof (path) === 'string' ? path : path.getAbsolutePath();
-        const info = await this.getFileEntry(bucket, path);
-        if (info.result) {
-            if (returning) {
-                return this.makeResponse(info.result, info.nativeResponse);
-            }
-            return this.makeResponse(true, info.nativeResponse);
-        }
-        return this.makeResponse(false, info.nativeResponse);
+        return await this.fileExists(bucket, path, true);
     }
 
 
-    public getStorageUri(bucket: IBucket, fileName: string | IFileEntry): string {
+    public getStorageUri(bucket: IBucket, fileName: string | IFile): string {
         return this.storage.makeFileUri(this, bucket, fileName);
     }
 
-    public async getPublicUrl(bucket: IBucket, fileName: string | IFileEntry, options?: any): Promise<string> {
+    public async getPublicUrl(bucket: IBucket, fileName: string | IFile, options?: any): Promise<string> {
         const uri = this.getStorageUri(bucket, fileName);
         return this.storage.getPublicUrl(uri, options);
     }
 
-    public async getSignedUrl(bucket: IBucket, fileName: string | IFileEntry, options?: any): Promise<string> {
+    public async getSignedUrl(bucket: IBucket, fileName: string | IFile, options?: any): Promise<string> {
         const uri = this.getStorageUri(bucket, fileName);
         return this.storage.getSignedUrl(uri, options);
+    }
+
+    public async getFileContents(bucket: IBucket, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>> {
+        if (!bucket.canRead()) {
+            throw new StorageException(StorageExceptionType.DUPLICATED_ELEMENT, `Cannot read on bucket ${bucket.name}!`);
+        }
+        const parts: any = [];
+        const stream = (await this.getFileStream(bucket, fileName, options)).result;
+        stream.on('data', data => parts.push(data));
+        const promise = new Promise((resolve, reject) => {
+            stream.on('end', () => resolve(Buffer.concat(parts)));
+            stream.on('error', err => reject(this.parseException(err)));
+        });
+        return this.makeResponse(await promise);
     }
 
 
@@ -158,21 +100,19 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
     public abstract addBucket(name: string, config?: BucketConfigType): Promise<StorageResponse<IBucket, NativeResponseType>>;
     public abstract destroyBucket(name: string): Promise<StorageResponse<boolean, NativeResponseType>>;
     public abstract listUnregisteredBuckets(creationOptions?: BucketConfigOptions): Promise<StorageResponse<BucketConfigType[], NativeResponseType>>;
-    public abstract makeDirectory<RType extends IDirectory | string = any>(bucket: IBucket, path: string | IDirectory, options?: CreateDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
-    public abstract delete(bucket: IBucket, path: string | IFileEntry, options?: DeleteFileEntryOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
-    public abstract emptyDirectory(bucket: IBucket, path: string | IDirectory): Promise<StorageResponse<boolean, NativeResponseType>>;
-    public abstract moveDirectory<RType extends IDirectory | string = any>(bucket: IBucket, src: string | IDirectory, dest: string | IDirectory, options?: MoveDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
-    public abstract copyDirectory<RType extends IDirectory | string = any>(bucket: IBucket, src: string | IDirectory, dest: string | IDirectory, options?: CopyDirectoryOptions): Promise<StorageResponse<RType, NativeResponseType>>;
-    public abstract getFileEntry<Rtype extends IFileEntry = IFileEntry>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>>;
-    public abstract list<RType extends ListResult<any>>(bucket: IBucket, path: string | IDirectory, options?: FileEntryListOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+    public abstract deleteFile(bucket: IBucket, path: string | IFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
+    public abstract deleteFiles(bucket: IBucket, path: string, pattern: Pattern, options?: DeleteManyFilesOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
+    public abstract fileExists<RType extends IFile | boolean = any>(bucket: IBucket, path: string | IFile, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>>;
+    public abstract listFiles<RType extends IFile[] | string[] = IFile[]>(bucket: IBucket, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, NativeResponseType>>;
     public abstract putFile<RType extends IFile | string = any>(bucket: IBucket, fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
     public abstract getFileStream(bucket: IBucket, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, NativeResponseType>>;
-    public abstract getFileContents(bucket: IBucket, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>>;
-    public abstract copyFile<RType extends string | IFile = any>(bucket: IBucket, src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
-    public abstract moveFile<RType extends string | IFile = any>(bucket: IBucket, src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+    public abstract copyFile<RType extends IFile | string = IFile>(bucket: IBucket, src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+    public abstract copyFiles<RType extends string[] | IFile[] = IFile[]>(bucket: IBucket, src: string, dest: string, pattern: Pattern, options?: CopyManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+    public abstract moveFile<RType extends IFile | string = IFile>(bucket: IBucket, src: string | IFile, dest: string | IFile, options?: MoveFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+    public abstract moveFiles<RType extends string[] | IFile[] = IFile[]>(bucket: IBucket, src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+    public abstract removeEmptyDirectories(bucket: IBucket, path: string): Promise<StorageResponse<boolean, NativeResponseType>>;
     protected abstract parseConfig(config: string | ProviderConfigType): ProviderConfigType;
-    protected abstract generateFileObject(bucket: IBucket, path: string, options?: any): Promise<IFileEntry>;
-
+    protected abstract generateFileObject(bucket: IBucket, path: string, options?: any): Promise<IFile>;
 
     protected resolveFileUri(bucket: IBucket, uri: string): string {
         const parts = this.storage.resolveFileUri(uri);
@@ -244,6 +184,18 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
 
     protected shouldReturnObject(returning: boolean | undefined): boolean {
         return returning === true || objectNull(returning) && this.storage.config.returningByDefault;
+    }
+
+    protected shouldCleanupDirectory(bucket: IBucket, cleanup: boolean | undefined): boolean {
+        return cleanup === true || (undefined===cleanup && (bucket.config.autoCleanup === true || this.config.autoCleanup === true || this.storage.config.autoCleanup === true));
+    }
+
+
+    protected parseException(ex: Error, type: StorageExceptionType = StorageExceptionType.NATIVE_ERROR) {
+        if (ex instanceof StorageException) {
+            throw ex;
+        }
+        throw new StorageException(type, ex.message, ex);
     }
 
 }

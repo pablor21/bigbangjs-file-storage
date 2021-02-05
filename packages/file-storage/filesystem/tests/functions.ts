@@ -1,7 +1,6 @@
 import { FileStorage } from "@bigbangjs/file-storage";
 import { FilesystemProvider, FileSystemProviderConfig } from "../src";
 import path from 'path';
-import fs from 'fs-extra';
 
 FileStorage.registerProviderType('fs', FilesystemProvider);
 
@@ -33,7 +32,7 @@ export async function generateStorage(testName: string) {
 
 export async function generateBuckets(testName: string) {
     const storage = (await generateStorage(testName)).storage as FileStorage;
-    (await storage.getProvider('provider01').addBucket('bucket01', { root: '/bucket01' }));
-    (await storage.getProvider('provider01').addBucket('bucket02', { root: '/bucket02' }));
+    (await storage.getProvider('provider01').addBucket('bucket01', { root: '/testBucket01' }));
+    (await storage.getProvider('provider01').addBucket('bucket02', { root: '/testBucket02' }));
     return storage;
 }

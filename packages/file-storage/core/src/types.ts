@@ -1,4 +1,4 @@
-import { IFileEntry } from './files';
+import { IFile } from './files';
 import { IStorageProvider } from './providers';
 import { IMatcher } from './lib';
 import { IBucket } from './buckets';
@@ -6,7 +6,7 @@ export type ClassType<T> = new (...args: any[]) => T;
 
 export type Pattern = string | RegExp;
 
-type ListOptions = {
+export type ListFilesOptions = {
     /**
      * Recursive? list subdirectories
      */
@@ -30,24 +30,11 @@ type ListOptions = {
     /**
      * Function to apply on every src entry should return true if should be returning or false otherwise
      */
-    filter?: (name: string, path: string, type: 'DIRECTORY' | 'FILE') => boolean | Promise<boolean>;
+    filter?: (name: string, path: string) => boolean | Promise<boolean>;
     /**
      * Options passed to the native driver (for example, in aws this should be the continuation token)
      */
     nativeOptions?: any;
-};
-
-export type DirectoryListOptions = ListOptions & {
-};
-
-export type FileListOptions = ListOptions & {
-};
-
-export type FileEntryListOptions = ListOptions & {
-    /**
-     * Type of entries to be returning
-     */
-    type: 'DIRECTORY' | 'FILE' | 'BOTH';
 };
 
 
@@ -65,8 +52,8 @@ export type StorageResponse<ResponseType = any, NativeResponseType = any> = {
     nativeResponse: NativeResponseType;
 };
 
-export type ListResult<EntriesType extends IFileEntry[] | string[]> = {
-    entries: EntriesType[];
+export type ListResult<EntriesType extends IFile[] | string[]> = {
+    entries: EntriesType;
 };
 
 
@@ -76,56 +63,11 @@ export type CreateFileOptions = {
      */
     returning?: boolean;
     /**
-     * Permissions
-     */
-    permissions?: string | number;
-    /**
      * Overwrite if exist or throw an error?
      */
     overwrite?: boolean;
 };
 
-export type CreateDirectoryOptions = {
-    /**
-     * Should return a FileInfo?
-     */
-    returning?: boolean;
-    /**
-     * Permissions
-     */
-    permissions?: string | number;
-};
-
-export type MoveDirectoryOptions = {
-    /**
-     * Should return a FileInfo?
-     */
-    returning?: boolean;
-    /**
-     * Overwrite if exist or throw an error?
-     */
-    overwrite?: boolean;
-};
-
-export type CopyDirectoryOptions = {
-    /**
-     * Should return a FileInfo?
-     */
-    returning?: boolean;
-    /**
-     * Permissions
-     */
-    permissions?: string | number;
-    /**
-     * Overwrite if exist or throw an error?
-     */
-    overwrite?: boolean;
-
-    /**
-     * Function to apply on every src entry should return true if should be copied or false otherwise
-     */
-    filter?: ((src: string, dest: string) => boolean) | ((src: string, dest: string) => Promise<boolean>);
-};
 
 export type CopyFileOptions = {
     /**
@@ -133,16 +75,24 @@ export type CopyFileOptions = {
      */
     returning?: boolean;
     /**
-     * Permissions
-     */
-    permissions?: string | number;
-    /**
      * Overwrite if exist or throw an error?
      */
     overwrite?: boolean;
 };
 
-export type MoveFileOptions = CopyFileOptions;
+export type MoveFileOptions = CopyFileOptions & {
+    /**
+     * Remove empty directories in the source?
+     */
+    cleanup?: boolean;
+};
+
+export type CopyManyFilesOptions = CopyFileOptions & {
+    filter?: ((src: string, dest: string) => boolean) | ((src: string, dest: string) => Promise<boolean>);
+};
+
+export type MoveManyFilesOptions = CopyManyFilesOptions & MoveFileOptions;
+
 
 export type GetFileOptions = {
     start?: number;
@@ -201,6 +151,10 @@ export type FileStorageConfigOptions = {
      * Logger class
      */
     logger?: LoggerType | boolean;
+    /**
+     * Auto remove empty directories
+     */
+    autoCleanup?: boolean;
 };
 
 export type LoggerType = {
@@ -214,18 +168,11 @@ export type AddProviderOptions = {
     replace?: boolean;
 };
 
-export type DeleteFileEntryOptions = {
-    /**
-     * Pattern to match subdirs
-     */
-    pattern?: Pattern;
-    /**
-     * Function to apply on every src entry must return true if should be delete or false otherwise
-     */
-    filter?: (name: string, path: string, type: 'DIRECTORY' | 'FILE') => boolean | Promise<boolean>;
+export type DeleteFileOptions = {
+    cleanup?: boolean;
 };
 
-export type DeleteFileOptions = {
+export type DeleteManyFilesOptions = DeleteFileOptions & {
     /**
      * Pattern to match subdirs
      */
@@ -233,8 +180,9 @@ export type DeleteFileOptions = {
     /**
      * Function to apply on every src entry must return true if should be delete or false otherwise
      */
-    filter?: (name: string, path: string, type: 'DIRECTORY' | 'FILE') => boolean | Promise<boolean>;
+    filter?: (name: string, path: string) => boolean | Promise<boolean>;
 };
+
 
 export type ResolveUriReturn = {
     provider: IStorageProvider;

@@ -1,7 +1,7 @@
 import { IBucket } from './buckets';
 import { StorageEventType } from './eventnames';
 import { StorageException, StorageExceptionType } from './exceptions';
-import { IDirectory, IFile, IFileEntry } from './files/file.interface';
+import { IFile } from './files';
 import { objectNull, Registry, resolveMime, stringNullOrEmpty, DefaultMatcher, IMatcher, slug } from './lib';
 import { IStorageProvider, ProviderConfigOptions, StorageProviderClassType } from './providers';
 import { AddProviderOptions, FileStorageConfigOptions, LoggerType, ResolveUriReturn, StorageResponse } from './types';
@@ -11,6 +11,7 @@ const defaultConfigOptions: FileStorageConfigOptions = {
     defaultBucketMode: '0777',
     bucketAliasStrategy: 'NAME',
     autoInitProviders: true,
+    autoCleanup: true,
     defaultBucketName: null,
     returningByDefault: false,
     mimeFn: resolveMime,
@@ -188,7 +189,7 @@ export class FileStorage {
      * @param bucket the bucket
      * @param fileName the filename
      */
-    public makeFileUri(provider: IStorageProvider | string, bucket: IBucket | string, fileName?: string | IFileEntry) {
+    public makeFileUri(provider: IStorageProvider | string, bucket: IBucket | string, fileName?: string | IFile) {
         let url = '';
         if (typeof (provider) === 'string') {
             provider = this.getProvider(provider);
@@ -223,30 +224,6 @@ export class FileStorage {
         return undefined;
     }
 
-    /**
-     * Returns a file  from it's uri
-     * @param uri the file or directory uri
-     */
-    public async getDirectory<T extends IDirectory = IDirectory>(uri: string): Promise<StorageResponse<IDirectory>> {
-        const parameters = this.resolveFileUri(uri);
-        if (parameters) {
-            return parameters.bucket.getDirectory<T>(uri);
-        }
-        return undefined;
-    }
-
-
-    /**
-     * Returns a file or directory from it's uri
-     * @param uri the file or directory uri
-     */
-    public async getFileEntry<T extends IFileEntry = IFileEntry>(uri: string): Promise<StorageResponse<IFileEntry>> {
-        const parameters = this.resolveFileUri(uri);
-        if (parameters) {
-            return parameters.bucket.getEntry<T>(uri);
-        }
-        return undefined;
-    }
 
     /**
      * Given a file/directory uri, gets the provider, bucket and path
@@ -322,7 +299,7 @@ export class FileStorage {
     }
 
 
-    public async getPublicUrl(fileUri: string | IFileEntry, options?: any): Promise<string> {
+    public async getPublicUrl(fileUri: string | IFile, options?: any): Promise<string> {
         if (typeof (this.config.urlGenerator) === 'function') {
             if (typeof (fileUri) !== 'string') {
                 fileUri = this.makeFileUri(fileUri.bucket.provider, fileUri.bucket, fileUri.getAbsolutePath());
@@ -332,7 +309,7 @@ export class FileStorage {
         return undefined;
     }
 
-    public async getSignedUrl(fileUri: string | IFileEntry, options?: any): Promise<string> {
+    public async getSignedUrl(fileUri: string | IFile, options?: any): Promise<string> {
         if (typeof (this.config.signedUrlGenerator) === 'function') {
             if (typeof (fileUri) !== 'string') {
                 fileUri = this.makeFileUri(fileUri.bucket.provider, fileUri.bucket, fileUri.getAbsolutePath());

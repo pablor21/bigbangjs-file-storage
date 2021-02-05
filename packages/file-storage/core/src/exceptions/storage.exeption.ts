@@ -4,6 +4,7 @@ export enum StorageExceptionType {
     DUPLICATED_ELEMENT = 'E_DUPLICATED_ELEMENT',
     NOT_FOUND = 'E_NOT_FOUND',
     INVALID_PARAMS = 'E_INVALID_PARAMS',
+    PERMISSION_ERROR = 'E_PERMISSION'
 }
 
 export class StorageException extends Error implements Error {
@@ -18,7 +19,7 @@ export class StorageException extends Error implements Error {
         super(message);
         this.name = StorageException.prototype.name;
         this.type = type;
-        this.code = data.code;
+        this.code = data?.code || type;
         Object.assign(this.data, data || {});
         Object.setPrototypeOf(this, StorageException.prototype);
     }

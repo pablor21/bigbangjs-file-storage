@@ -2,12 +2,12 @@ import path from 'path';
 import fs from 'fs-extra';
 import { Bucket, FileStorage, StorageException } from '@bigbangjs/file-storage';
 import { FilesystemProvider, FileSystemProviderConfig, FileSystemBucketConfig } from '../../src';
-import { generateBuckets, generateStorage, rootPath } from '../functions';
+import { generateStorage, rootPath } from '../functions';
 
 
 
 
-export const storage001 = (autoRemove = true) => describe('Suite 001', () => {
+export const suite001 = (autoRemove = true) => describe('Suite 001', () => {
 
     if (autoRemove) {
         beforeAll(async () => {

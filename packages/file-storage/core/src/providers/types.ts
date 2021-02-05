@@ -4,4 +4,5 @@ export type ProviderConfigOptions = {
     autoInit?: boolean;
     uri?: string;
     type?: string;
+    autoCleanup?: boolean;
 };

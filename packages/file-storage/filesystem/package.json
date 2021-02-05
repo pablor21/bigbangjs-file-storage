@@ -26,9 +26,7 @@
 	"peerDependencies": {
 		"@bigbangjs/file-storage": "^0.0.1"
 	},
-	"dependencies": {
-		"fs-extra": "^9.1.0"
-	},
+	"dependencies": {},
 	"publishConfig": {
 		"access": "public"
 	}
