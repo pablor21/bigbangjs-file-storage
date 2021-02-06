@@ -6,8 +6,9 @@ module.exports = {
         'always',
         [
           // workspace packages
-          'storage/core',
-          'storage/filesystem',
+          'core',
+          'filesystem',
+          's3',
           'eslint',
           '*',
         ],
