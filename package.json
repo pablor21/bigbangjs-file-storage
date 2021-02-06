@@ -34,7 +34,8 @@
     "start": "lerna run start --parallel",
     "lint": "eslint packages/**/src/*.ts",
     "test": "jest --config jestconfig.json --runInBand",
-    "build": "lerna run build"
+    "build": "lerna run build",
+    "coverage": "jest --config jestconfig.json --coverage --watchAll"
   },
   "publishConfig": {
     "access": "public"

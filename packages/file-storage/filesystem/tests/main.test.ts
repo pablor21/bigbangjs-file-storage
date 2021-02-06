@@ -8,7 +8,7 @@ import { suite002 } from "./suites/0002_files";
 // })
 
 
-describe('Runing tests', () => {
+describe('Runing Filesystem provider tests', () => {
     const autoRemove = true;
     suite001(autoRemove);
     suite002(autoRemove);

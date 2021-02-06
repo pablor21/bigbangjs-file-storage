@@ -108,7 +108,7 @@ export type FileStorageConfigOptions = {
     /**
      * Naming strategy for the buckets in the global registry
      */
-    bucketAliasStrategy: 'NAME' | 'PROVIDER:NAME' | ((name: string, provider: IStorageProvider) => string | Promise<string>);
+    bucketAliasStrategy: 'NAME' | 'PROVIDER:NAME' | ((name: string, provider: IStorageProvider) => string);
     /**
      * Auto init providers? This will make to call init() on the provider when it's added to the storage
      */

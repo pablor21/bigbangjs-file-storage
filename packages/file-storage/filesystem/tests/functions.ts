@@ -13,7 +13,7 @@ export const rootPath = path.resolve('./private/test-storage/');
 export async function generateStorage(testName: string) {
     const context: any = {};
     context.storage = new FileStorage({
-        logger: console
+        logger: false
     });
     const storage = context.storage;
     // provider config

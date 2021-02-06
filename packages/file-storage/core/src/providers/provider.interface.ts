@@ -34,15 +34,15 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
   /**
     * Unregister the bucket from the provider session
     * THIS METHOD DOES NOT DELETES THE DIR OR CLOUD BUCKET, JUST UNREGISTERS THE BUCKET FROM THE PROVIDER SOURCE (filesystem or cloud)
-    * @param name the name of the bucket
+    * @param bucket the name of the bucket or the bucket object
     */
-  removeBucket(name: string): Promise<StorageResponse<boolean>>;
+  removeBucket(bucket: string | IBucket): Promise<StorageResponse<boolean>>;
   /**
    * WARNING!!!! THIS METHOD DELETES THE DIR OR CLOUD BUCKET
    * Destroy the bucket from the provider (removes the dir or delete from the cloud)
-   * @param name the name of the bucket
+   * @param bucket the name of the bucket or the object
    */
-  destroyBucket(name: string): Promise<StorageResponse<boolean, NativeResponseType>>;
+  destroyBucket(bucket: string | IBucket): Promise<StorageResponse<boolean, NativeResponseType>>;
   /**
    * List the registered buckets
    */

@@ -11,6 +11,7 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
     public readonly absoluteName: string;
     public readonly config: ConfigType;
     public readonly provider: IStorageProvider<ConfigType, NativeResponseType>;
+    public nativeProperites: any = {};
 
     constructor(provider: IStorageProvider<ConfigType, NativeResponseType>, name: string, absoltuteName: string, config: BucketConfigOptions | Record<string, any>) {
         this.config = config as ConfigType;
@@ -19,8 +20,17 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         this.provider = provider;
     }
 
+
     public log(level: 'info' | 'debug' | 'warn' | 'error', ...args: any) {
         this.provider.storage.log(level, ...args);
+    }
+
+    public async remove(): Promise<StorageResponse<boolean>> {
+        return this.provider.removeBucket(this);
+    }
+
+    public async destroy(): Promise<StorageResponse<boolean, NativeResponseType>> {
+        return this.provider.destroyBucket(this);
     }
 
     public canRead(): boolean {

@@ -159,13 +159,13 @@ export class FileStorage {
      * @param name the bucket name
      * @param provider the provider session
      */
-    public async resolveBucketAlias(name: string, provider: IStorageProvider): Promise<string> {
+    public resolveBucketAlias(name: string, provider: IStorageProvider): string {
         if (this.config.bucketAliasStrategy === 'NAME') {
             return name;
         } else if (this.config.bucketAliasStrategy === 'PROVIDER:NAME') {
             return `${provider.name}:${name}`;
         }
-        return await this.config.bucketAliasStrategy(name, provider);
+        return this.config.bucketAliasStrategy(name, provider);
     }
 
 
@@ -202,11 +202,21 @@ export class FileStorage {
         url += bucket.name;
 
         if (fileName) {
+            let fName = '';
             if (typeof (fileName) === 'string') {
-                url += fileName;
+                fName = fileName;
             } else {
-                url += fileName.getAbsolutePath();
+                fName = fileName.getAbsolutePath();
             }
+            if (fName.indexOf('/') !== 0) {
+                fName = '/' + fName;
+            }
+
+            fName.split('/').map(d => {
+                if (d !== '/' && !stringNullOrEmpty(d)) {
+                    url += '/' + this.slug(d);
+                }
+            });
         }
         return url;
     }
@@ -239,7 +249,7 @@ export class FileStorage {
                     return false;
                 }
                 const bucketName = parsedUrl.host;
-                const bucket = this.getBucket(bucketName);
+                const bucket = provider.getBucket(bucketName);
                 if (objectNull(bucket)) {
                     return false;
                 }

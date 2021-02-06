@@ -23,8 +23,27 @@ export interface IBucket<ConfigType extends BucketConfigOptions = any, NativeRes
      */
     provider: IStorageProvider;
 
+    /**
+     * native properties
+     */
+    nativeProperites: any;
+
     canRead(): boolean;
     canWrite(): boolean;
+
+/**
+    * Unregister the bucket from the provider session
+    * THIS METHOD DOES NOT DELETES THE DIR OR CLOUD BUCKET, JUST UNREGISTERS THE BUCKET FROM THE PROVIDER SOURCE (filesystem or cloud)
+    * @param name the name of the bucket
+    */
+   remove(): Promise<StorageResponse<boolean>>;
+   /**
+    * WARNING!!!! THIS METHOD DELETES THE DIR OR CLOUD BUCKET
+    * Destroy the bucket from the provider (removes the dir or delete from the cloud)
+    * @param name the name of the bucket
+    */
+   destroy(): Promise<StorageResponse<boolean, NativeResponseType>>;
+
     /**
      * Removes a file or files
      * @param dir the directory path (glob available) or directory
