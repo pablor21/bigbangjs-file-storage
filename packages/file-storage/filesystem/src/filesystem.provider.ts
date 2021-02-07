@@ -14,11 +14,9 @@ import {
     IStorageProvider,
     ProviderConfigOptions,
     StorageEventType,
-    StorageException,
     StorageExceptionType,
     StorageResponse,
     stringNullOrEmpty,
-    objectNull,
     Streams,
     CreateFileOptions,
     GetFileOptions,
@@ -27,6 +25,8 @@ import {
     Pattern,
     MoveFileOptions,
     DeleteManyFilesOptions,
+    throwError,
+    constructError,
 
 } from "@bigbangjs/file-storage";
 
@@ -47,16 +47,17 @@ export type FileSystemNativeResponse = {
 }
 
 export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfig, FileSystemBucketConfig, FileSystemNativeResponse> implements IStorageProvider<FileSystemBucketConfig, FileSystemNativeResponse>{
-
+    public readonly supportsCrossBucketOperations: boolean;
     public readonly type: string = 'FILESYSTEM';
     constructor(storage: FileStorage, name: string, config: string | FileSystemProviderConfig = defaultConfig) {
         super(storage, name, config);
+        this.supportsCrossBucketOperations = true;
         this.validateOptions();
     }
 
     protected validateOptions() {
         if (stringNullOrEmpty(this.config.root)) {
-            throw new StorageException(StorageExceptionType.INVALID_PARAMS, `The root path must be provided [${this.name}]!`);
+            throw constructError(`The root path must be provided [${this.name}]!`, StorageExceptionType.INVALID_PARAMS);
         }
     }
 
@@ -120,7 +121,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             this.emit(StorageEventType.BUCKET_ADDED, bucket);
             return this.makeResponse(bucket);
         } catch (ex) {
-            const error = new StorageException(StorageExceptionType.NATIVE_ERROR, ex.message, ex);
+            const error = constructError(ex.message, StorageExceptionType.NATIVE_ERROR, ex);
             this.emit(StorageEventType.BUCKET_ADD_ERROR, error);
             throw error;
         }
@@ -130,7 +131,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         await this.makeReady();
         const name = typeof (b) === 'string' ? b : b.name;
         if (!this._buckets.has(name)) {
-            throw new StorageException(StorageExceptionType.NOT_FOUND, `Bucket ${name} not found in this adapter!`, { name: name });
+            throw constructError(`Bucket ${name} not found in this adapter!`, StorageExceptionType.NOT_FOUND, { name: name });
         }
 
         try {
@@ -142,7 +143,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             this.emit(StorageEventType.BUCKET_DESTROYED, bucket);
             return this.makeResponse(true);
         } catch (ex) {
-            const error = new StorageException(StorageExceptionType.NATIVE_ERROR, ex.message, ex);
+            const error = constructError(ex.message, StorageExceptionType.NATIVE_ERROR, ex);
             this.emit(StorageEventType.BUCKET_DESTROY_ERROR, error);
             throw error;
         }
@@ -178,22 +179,15 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
 
 
     //  BUCKET API
-
     public async deleteFile(bucket: IBucket<FileSystemNativeResponse>, dir: string | IFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, FileSystemNativeResponse>> {
         await this.makeReady();
-        if (!bucket.canWrite()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
-        }
+        this.checkWritePermission(bucket);
+        this.isFileOrTrow(this.getFilenameFromFile(dir), 'path');
         try {
-            dir = this.resolveFileUri(bucket, dir);
-            const info = await this.generateFileObject(bucket, dir);
-            if (info) {
-                const completeDir = this.resolveBucketPath(bucket, dir);
-                await fs.promises.unlink(completeDir);
-                if (this.shouldCleanupDirectory(bucket, options?.cleanup)) {
-                    const parts = completeDir.split('/');
-                    await this.cleanDirectories(parts.splice(0, parts.length - 1).join('/'));
-                }
+            dir = this.resolveBucketPath(bucket, dir);
+            await fs.promises.unlink(dir);
+            if (this.shouldCleanupDirectory(bucket, options?.cleanup)) {
+                await this.cleanDirectories(this.extractDirectoryFromPath(dir));
             }
             return this.makeResponse(true);
         } catch (ex) {
@@ -205,37 +199,9 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         }
     }
 
-    public async deleteFiles(bucket: IBucket<any, any>, src: string, pattern: Pattern, options?: DeleteManyFilesOptions): Promise<StorageResponse<boolean, FileSystemNativeResponse>> {
-        await this.makeReady();
-        if (!bucket.canWrite()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
-        }
-        try {
-            src = this.resolveFileUri(bucket, src);
-            const toDelete = (await this.listFiles(bucket, src, { pattern, recursive: true, returning: false })).result;
-            const promises: Promise<StorageResponse<boolean, FileSystemNativeResponse>>[] = [];
-            toDelete.entries.map(c => {
-                promises.push(this.deleteFile(bucket, c, {
-                    cleanup: false // avoid cleanup
-                }));
-            });
-            await Promise.all(promises);
-            if (this.shouldCleanupDirectory(bucket, options?.cleanup)) {
-                await this.cleanDirectories(this.resolveBucketPath(bucket, src));
-            }
-            return this.makeResponse(true);
-        } catch (ex) {
-            this.parseException(ex);
-        }
-    }
-
-
-
     public async fileExists<RType extends boolean | IFile = any>(bucket: IBucket<any, any>, path: string | IFile, returning?: boolean): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         await this.makeReady();
-        if (!bucket.canRead()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot read on bucket ${bucket.name}!`);
-        }
+        this.checkReadPermission(bucket);
         try {
             const info = await this.generateFileObject(bucket, path);
             if (info) {
@@ -253,9 +219,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
 
     public async listFiles<RType extends string[] | IFile[] = IFile[]>(bucket: IBucket<any, any>, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, FileSystemNativeResponse>> {
         await this.makeReady();
-        if (!bucket.canRead()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot read on bucket ${bucket.name}!`);
-        }
+        this.checkReadPermission(bucket);
         try {
             const completePath = this.resolveBucketPath(bucket);
             const fileObjectGenerator = async (path: string, bucket: IBucket) => {
@@ -287,29 +251,25 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
 
     public async putFile<RType extends string | IFile = any>(bucket: IBucket<any, any>, fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         await this.makeReady();
+        this.checkWritePermission(bucket);
 
-        fileName = this.resolveFileUri(bucket, fileName);
-        const absPath = this.resolveBucketPath(bucket, fileName);
-
-        if (!bucket.canWrite()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
-        }
+        const absFilename = this.resolveBucketPath(bucket, fileName, false);
+        this.isFileOrTrow(absFilename, 'fileName');
 
         if (options?.overwrite === false) {
             const exists = (await this.fileExists(bucket, fileName, false)).result;
             if (exists) {
                 const fName = this.getFilenameFromFile(fileName);
-                throw new StorageException(StorageExceptionType.DUPLICATED_ELEMENT, `The file ${fName} already exists!`);
+                throw constructError(`The file ${fName} already exists!`, StorageExceptionType.DUPLICATED_ELEMENT);
             }
         }
 
         try {
             // ensure directory
-            await this.ensureDirExists(absPath);
-
-            const writeStream = fs.createWriteStream(absPath, { flags: 'w' });
-            let readStream: Streams.Readable = null;
+            await this.ensureDirExists(this.extractDirectoryFromPath(absFilename));
             let promise = null;
+            const writeStream = fs.createWriteStream(absFilename, { flags: 'w' });
+            let readStream: Streams.Readable = null;
             if (contents instanceof Buffer) {
                 readStream = new Streams.Readable();
                 // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -319,6 +279,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             } else if (contents instanceof Streams.Readable) {
                 readStream = contents;
             }
+
             if (readStream) {
                 promise = new Promise((resolve, reject) => {
                     readStream
@@ -328,10 +289,12 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
                     writeStream.on("error", reject);
                 });
             } else {
-                promise = fs.promises.writeFile(absPath, contents.toString(), { flag: 'w' });
+                promise = fs.promises.writeFile(absFilename, contents.toString(), { flag: 'w' });
             }
 
-            let ret: any = this.storage.makeFileUri(this, bucket, this.convertAbsolutePathToBucketPath(bucket, absPath));
+            await promise;
+
+            let ret: any = this.storage.makeFileUri(this, bucket, this.convertAbsolutePathToBucketPath(bucket, absFilename));
             if (this.shouldReturnObject(options?.returning)) {
                 ret = await this.generateFileObject(bucket, fileName);
 
@@ -343,12 +306,10 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
     }
 
     public async getFileStream(bucket: IBucket<any, any>, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, FileSystemNativeResponse>> {
-
-        if (!bucket.canRead()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot read on bucket ${bucket.name}!`);
-        }
-        fileName = this.resolveFileUri(bucket, fileName);
+        await this.makeReady();
+        this.checkReadPermission(bucket);
         const absPath = this.resolveBucketPath(bucket, fileName);
+        this.isFileOrTrow(absPath);
         const result = fs.createReadStream(absPath, {
             start: options?.start,
             end: options?.end
@@ -356,25 +317,33 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         return this.makeResponse(result);
     }
 
+
+
     public async copyFile<RType extends string | IFile = IFile>(bucket: IBucket<any, any>, src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         await this.makeReady();
-
-        if (!bucket.canWrite()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
-        }
+        this.checkReadPermission(bucket);
 
         try {
-            src = this.resolveFileUri(bucket, src);
-            dest = this.resolveFileUri(bucket, dest);
-            const srcPath = this.resolveBucketPath(bucket, src);
-            const destPath = this.resolveBucketPath(bucket, dest);
-            await this.ensureDirExists(destPath);
-
-            await fs.promises.copyFile(srcPath, destPath);
-            if (this.shouldReturnObject(options?.returning)) {
-                return this.makeResponse(await this.generateFileObject(bucket, dest));
+            //parse paths
+            src = this.resolveBucketPath(bucket, src, false);
+            this.isFileOrTrow(src, 'src');
+            if (this.isDirectory(this.getFilenameFromFile(dest))) {
+                dest = (`${dest}/${this.extractFilenameFromPath(src)}`);
+                this.isFileOrTrow(dest, 'dest');
             }
-            return this.makeResponse(this.storage.makeFileUri(this, bucket, this.convertAbsolutePathToBucketPath(bucket, dest)));
+            const destResolvedUri = this.resolveUri(bucket, dest, true);
+            this.checkWritePermission(destResolvedUri.bucket);
+            dest = this.resolveBucketPath(destResolvedUri.bucket, destResolvedUri.path);
+            if (this.isDirectory(dest)) {
+                dest = this.normalizePath(`${dest}/${this.extractFilenameFromPath(src)}`);
+            }
+            await this.ensureDirExists(this.extractDirectoryFromPath(dest));
+
+            await fs.promises.copyFile(src, dest);
+            if (this.shouldReturnObject(options?.returning)) {
+                return this.makeResponse(await this.generateFileObject(destResolvedUri.bucket, destResolvedUri.path));
+            }
+            return this.makeResponse(this.storage.makeFileUri(this, destResolvedUri.bucket, this.convertAbsolutePathToBucketPath(destResolvedUri.bucket, dest)));
         } catch (ex) {
             this.parseException(ex);
         }
@@ -383,29 +352,34 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
 
     public async moveFile<RType extends IFile | string = IFile>(bucket: IBucket<any, any>, src: string | IFile, dest: string | IFile, options?: MoveFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         await this.makeReady();
-        if (!bucket.canWrite()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
-        }
+        this.checkReadPermission(bucket);
         try {
+            //parse paths
+            src = this.resolveBucketPath(bucket, src, false);
+            this.isFileOrTrow(src, 'src');
+            if (this.isDirectory(this.getFilenameFromFile(dest))) {
+                dest = (`${dest}/${this.extractFilenameFromPath(src)}`);
+                this.isFileOrTrow(dest, 'dest');
+            }
+            const destResolvedUri = this.resolveUri(bucket, dest, true);
+            this.checkWritePermission(destResolvedUri.bucket);
+            dest = this.resolveBucketPath(destResolvedUri.bucket, destResolvedUri.path);
 
-            src = this.resolveFileUri(bucket, src);
-            dest = this.resolveFileUri(bucket, dest);
-            const srcAbsPath = this.resolveBucketPath(bucket, src);
-            const destAbsPath = this.resolveBucketPath(bucket, dest);
+            // ensure target directory exists
+            await this.ensureDirExists(this.extractDirectoryFromPath(dest));
 
-            await this.ensureDirExists(destAbsPath);
+            // move file
+            await fs.promises.rename(src, dest);
 
-            await fs.promises.rename(srcAbsPath, destAbsPath);
-
+            // cleanup empty dirs
             if (this.shouldCleanupDirectory(bucket, options?.cleanup)) {
-                const parts = srcAbsPath.split('/');
-                await this.cleanDirectories(parts.slice(0, parts.length - 1).join('/'));
+                await this.cleanDirectories(this.extractDirectoryFromPath(src));
             }
 
             if (this.shouldReturnObject(options?.returning)) {
-                return this.makeResponse(await this.generateFileObject(bucket, dest));
+                return this.makeResponse(await this.generateFileObject(destResolvedUri.bucket, destResolvedUri.path));
             }
-            return this.makeResponse(this.storage.makeFileUri(this, bucket, this.convertAbsolutePathToBucketPath(bucket, dest)));
+            return this.makeResponse(this.storage.makeFileUri(this, destResolvedUri.bucket, this.convertAbsolutePathToBucketPath(destResolvedUri.bucket, dest)));
 
         } catch (ex) {
             this.parseException(ex);
@@ -558,7 +532,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
 
     }
 
-    protected getBucketPath(bucket: IBucket) {
+    protected getBucketRootPath(bucket: IBucket) {
         return this.extractBucketOptions(bucket).root || bucket.name;
     }
 
@@ -567,18 +541,9 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
      * @param bucket the target bucket
      * @param dir the path
      */
-    protected resolveBucketPath(bucket: IBucket, dir?: string | IFile) {
-        if (typeof (dir) === 'string') {
-            dir = this.resolveFileUri(bucket, dir);
-        }
-        if (objectNull(dir)) {
-            dir = '/';
-        }
-        dir = typeof (dir) === 'string' ? dir : dir.getAbsolutePath();
-        dir = stringNullOrEmpty(dir) ? '/' : dir;
-        dir = path.join(this.getBucketPath(bucket), dir || '/');
-        const ret = this.resolvePath(dir);
-        return ret;
+    protected resolveBucketPath(bucket: IBucket, dir?: string | IFile, allowCrossBucket = false): string {
+        const resolved = this.resolveUri(bucket, dir, allowCrossBucket);
+        return path.join(this.config.root, this.getBucketRootPath(resolved.bucket), this.normalizePath(resolved.path) || '/').replace(/\\/g, '/');
     }
 
     protected convertAbsolutePathToBucketPath(bucket: IBucket, dir?: string) {
@@ -586,17 +551,17 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         return dir.replace(bucketPath, '');
     }
 
-    protected resolvePath(source: string | IFile): string {
-        source = typeof (source) === 'string' ? source : source.getAbsolutePath();
-        source = source ? this.normalizePath(source) : source;
-        if (source.startsWith('/')) {
-            source = source.substr(1);
-        }
-        if (!source) {
-            return path.resolve(this.config.root);
-        }
-        return path.resolve(this.config.root, source);
-    }
+    // protected resolvePath(source: string | IFile): string {
+    //     source = typeof (source) === 'string' ? source : source.getAbsolutePath();
+    //     source = source ? this.normalizePath(source) : source;
+    //     if (source.startsWith('/')) {
+    //         source = source.substr(1);
+    //     }
+    //     if (!source) {
+    //         return path.resolve(this.config.root);
+    //     }
+    //     return path.resolve(this.config.root, source);
+    // }
 
 
 }

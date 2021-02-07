@@ -2,17 +2,19 @@
   "testTimeout": 30000,
   "preset": "ts-jest",
   "collectCoverage": false,
+  "rootDir": "../../../",
   "collectCoverageFrom": [
-    "<rootDir>/packages/file-storage/core/src/**/*.ts"
+    "<rootDir>/packages/**/src/**/*.ts"
   ],
   "moduleNameMapper": {
     "@bigbangjs/file-storage": "<rootDir>/packages/file-storage/core/src",
     "@bigbangjs/file-storage-(.*)": "<rootDir>/packages/file-storage/$1/src"
   },
+  "testMatch": ["<rootDir>/packages/file-storage/gcs/**/*.test.ts"],
+  "displayName": "File Storage GCS",
+  "testEnvironment": "node",
   "modulePathIgnorePatterns": [
     "dist/package.json",
     "<rootDir>/package.json"
-  ],
-  "testMatch": ["<rootDir>/tests/**/*.test.ts"]
-  
+  ]
 }

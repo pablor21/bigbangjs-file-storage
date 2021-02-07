@@ -1,11 +1,12 @@
 import { IBucket } from './buckets';
+import { VALID_PROVIDER_NAMES_REGEX } from './constants';
 import { StorageEventType } from './eventnames';
-import { StorageException, StorageExceptionType } from './exceptions';
+import { constructError, StorageExceptionType, throwError } from './exceptions';
 import { IFile } from './files';
-import { objectNull, Registry, resolveMime, stringNullOrEmpty, DefaultMatcher, IMatcher, slug } from './lib';
+import { objectNull, Registry, resolveMime, stringNullOrEmpty, DefaultMatcher, IMatcher, slug, castValue } from './lib';
 import { IStorageProvider, ProviderConfigOptions, StorageProviderClassType } from './providers';
-import { AddProviderOptions, FileStorageConfigOptions, LoggerType, ResolveUriReturn, StorageResponse } from './types';
-
+import { AddProviderOptions, CopyFileOptions, CopyManyFilesOptions, FileStorageConfigOptions, LoggerType, MoveFileOptions, MoveManyFilesOptions, Pattern, ResolveUriReturn, SignedUrlOptions, StorageResponse } from './types';
+import path from 'path';
 
 const defaultConfigOptions: FileStorageConfigOptions = {
     defaultBucketMode: '0777',
@@ -17,6 +18,7 @@ const defaultConfigOptions: FileStorageConfigOptions = {
     mimeFn: resolveMime,
     slugFn: slug,
     matcherType: DefaultMatcher,
+    defaultSignedUrlExpiration: 3600,
     logger: console,
 };
 
@@ -55,6 +57,9 @@ export class FileStorage {
      * @param provider the provider type
      */
     public static registerProviderType(name: string, provider: StorageProviderClassType<IStorageProvider>) {
+        if (!provider || !name.match(VALID_PROVIDER_NAMES_REGEX)) {
+            throwError(`Invalid provider type`, StorageExceptionType.INVALID_PARAMS, { name, provider });
+        }
         FileStorage.providerTypes.set(name, provider);
     }
 
@@ -72,7 +77,7 @@ export class FileStorage {
      */
     public static getProviderType(name: string): StorageProviderClassType<IStorageProvider> {
         if (!FileStorage.providerTypes.has(name)) {
-            throw new StorageException(StorageExceptionType.NOT_FOUND, `The provider type "${name}" has not been registered yet!`, { type: name });
+            throw constructError(`The provider type "${name}" has not been registered yet!`, StorageExceptionType.NOT_FOUND, { type: name });
         }
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         return FileStorage.providerTypes.get(name)!;
@@ -87,30 +92,30 @@ export class FileStorage {
      * @param options the creation options
      */
     public async addProvider(name: string, config: ProviderConfigOptions, options: AddProviderOptions = { replace: false }): Promise<StorageResponse<IStorageProvider>> {
-        if (objectNull(config)) {
-            throw new StorageException(StorageExceptionType.INVALID_PARAMS, `Invalid configuration options!`, { options: config });
+        if (objectNull(config) || !name.match(VALID_PROVIDER_NAMES_REGEX)) {
+            throw constructError(`Invalid configuration options!`, StorageExceptionType.INVALID_PARAMS, { options: config });
         }
 
         if (config.uri) {
             const parsedUrl = new URL(config.uri);
             config.type = config.type || parsedUrl.protocol.replace(':', '');
-            config.autoInit = config.autoInit || parsedUrl.searchParams.get('autoInit') === '1' || parsedUrl.searchParams.get('autoInit') === 'true' || this.config.autoInitProviders;
+            config.autoInit = config.autoInit || castValue<boolean>(parsedUrl.searchParams.get('autoInit'), 'boolean', this.config.autoInitProviders);
         }
 
         if (stringNullOrEmpty(config.type) || stringNullOrEmpty(name)) {
-            throw new StorageException(StorageExceptionType.INVALID_PARAMS, `Invalid configuration options!`, { options: config });
+            throwError(`Invalid configuration options!`, StorageExceptionType.INVALID_PARAMS, { options: config });
         }
 
         if (this.getProvider(name)) {
             if (!options?.replace) {
-                throw new StorageException(StorageExceptionType.DUPLICATED_ELEMENT, `The provider "${name}" already exists!`, { name });
+                throwError(`The provider "${name}" already exists!`, StorageExceptionType.DUPLICATED_ELEMENT, { name });
             }
             await this.disposeProvider(name);
         }
 
         const providerClass = FileStorage.getProviderType(config.type!);
         if (!providerClass) {
-            throw new StorageException(StorageExceptionType.INVALID_PARAMS, `The provider type "${config.type}" has not been registered yet!`, { options: config });
+            throwError(`The provider type "${config.type}" has not been registered yet!`, StorageExceptionType.INVALID_PARAMS, { options: config });
         }
         const provider = this.createProviderInstance(providerClass, name, config);
 
@@ -125,7 +130,7 @@ export class FileStorage {
             this.providers.add(name!, provider);
             return { result: provider, nativeResponse: response };
         } catch (ex) {
-            throw new StorageException(StorageExceptionType.UNKNOWN_ERORR, ex.message, ex);
+            throwError(ex.message, StorageExceptionType.UNKNOWN_ERROR, ex);
         }
     }
 
@@ -155,11 +160,160 @@ export class FileStorage {
     }
 
     /**
+     * Copy a file between buckets
+     * @param src the file entry or full uri path
+     * @param dest the destination file entry or full uri path
+     * @param options the copy options
+     * @returns The file object if returning is true, the file uri otherwhise
+     */
+    public async copyFile<RType extends IFile | string = IFile, NativeResponseType = any>(src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+        try {
+            const srcAbsPath = this.resolveFileUri(src);
+            const destAbsPath = this.resolveFileUri(dest);
+            if (!srcAbsPath || !destAbsPath) {
+                throw constructError(`Invalid source or target path`, StorageExceptionType.INVALID_PARAMS);
+            }
+            const sourceStream = (await srcAbsPath.bucket.getFileStream(src)).result;
+            const result = (await destAbsPath.bucket.putFile(dest, sourceStream, options));
+            return result as StorageResponse<RType, NativeResponseType>;
+        } catch (ex) {
+            this.parseException(ex);
+        }
+    }
+
+    /**
+     * Copy many files by pattern
+     * @param src the full uri base path
+     * @param dest the destination path
+     * @param pattern the pattern (glob or regex)
+     * @param options the copy options
+     * @returns The file object if returning is true, the file uri otherwhise
+     */
+    public async copyFiles<RType extends IFile[] | string[] = IFile[], NativeResponseType = any>(src: string, dest: string, pattern: Pattern, options?: CopyManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+        try {
+            const srcAbsPath = this.resolveFileUri(this.getFilenameFromFile(src));
+            const destAbsPath = this.resolveFileUri(this.getFilenameFromFile(dest));
+
+            if (!srcAbsPath || !destAbsPath) {
+                throw constructError(`Invalid source or target path`, StorageExceptionType.INVALID_PARAMS);
+            }
+            const toCopy = await srcAbsPath.bucket.listFiles(srcAbsPath.path, { pattern, returning: false, recursive: true, filter: options?.filter });
+            const promises: any[] = [];
+            const destPath = destAbsPath.path;
+            const srcPath = srcAbsPath.path;
+
+            toCopy.result.entries.map(c => {
+                promises.push(async () => {
+                    const f = (this.resolveFileUri(this.getFilenameFromFile(c)) as ResolveUriReturn).path;
+                    const sourceStream = (await srcAbsPath.bucket.getFileStream(f)).result;
+                    const result = (await destAbsPath.bucket.putFile(this.normalizePath(path.join(destPath, f.replace(srcPath, ''))), sourceStream, options)).result;
+                    return result;
+                });
+            });
+            const result = await Promise.all(promises.map(async f => await f()));
+            return result as unknown as StorageResponse<RType, NativeResponseType>;
+        } catch (ex) {
+            this.parseException(ex);
+        }
+    }
+
+    // await this.makeReady();
+    //     if (!bucket.canWrite()) {
+    //         throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
+    //     }
+    //     try {
+    //         src = this.resolveFileUri(bucket, src);
+    //         const toMove = await this.listFiles(bucket, src, { pattern, returning: false, recursive: true, filter: options.filter });
+    //         const promises: Promise<StorageResponse<IFile | string, NativeResponseType>>[] = [];
+    //         toMove.result.entries.map(c => {
+    //             const f = this.resolveFileUri(bucket, this.getFilenameFromFile(c));
+    //             const destPath = path.join(dest, f.replace(src, ''));
+    //             promises.push(this.moveFile(bucket, c, destPath, {
+    //                 cleanup: false, // avoid cleanup
+    //                 returning: options?.returning,
+    //                 overwrite: options?.overwrite,
+    //             }));
+    //         });
+    //         const result = await Promise.all(promises);
+    //         if (this.shouldCleanupDirectory(bucket, options?.cleanup)) {
+    //             await this.removeEmptyDirectories(bucket, src);
+    //         }
+    //         return this.makeResponse(result);
+    //     } catch (ex) {
+    //         this.parseException(ex);
+    //     }
+
+
+    /**
+     * Move a file
+     * @param src the file entry or full uri path
+     * @param dest the destination file entry or full uri path
+     * @param options the move options
+     * @returns The file object if returning is true, the file uri otherwhise
+     */
+    public async moveFile<RType extends IFile | string = IFile, NativeResponseType = any>(src: string | IFile, dest: string | IFile, options?: MoveFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+        try {
+            const srcAbsPath = this.resolveFileUri(this.getFilenameFromFile(src));
+            const destAbsPath = this.resolveFileUri(this.getFilenameFromFile(dest));
+            if (!srcAbsPath || !destAbsPath) {
+                throw constructError(`Invalid source or target path`, StorageExceptionType.INVALID_PARAMS);
+            }
+            const sourceStream = (await srcAbsPath.bucket.getFileStream(src)).result;
+            const result = (await destAbsPath.bucket.putFile(dest, sourceStream, options));
+            if (result.result) {
+                await (srcAbsPath.bucket.deleteFile(src, options));
+            }
+            return result as StorageResponse<RType, NativeResponseType>;
+        } catch (ex) {
+            this.parseException(ex);
+        }
+    }
+
+    public normalizePath(dir?: string): string {
+        if (!dir) {
+            return '';
+        }
+        dir.replace(/\\/g, '/').replace(/ +/g, ' ');
+        let result = '';
+        const parts = dir.split('/');
+        if (parts.length > 0) {
+            parts.map(d => {
+                if (d !== '/' && !stringNullOrEmpty(d)) {
+                    result += '/' + this.slug(d);
+                }
+            });
+        } else {
+            result += '/' + this.slug(dir);
+        }
+        // if (stringNullOrEmpty(result)) {
+        //     result = '/';
+        // }
+        result = path.normalize(result).replace(/\\/g, '/').toLowerCase();
+        if (result === '.') {
+            result = '';
+        }
+        return result;
+    }
+
+
+    /**
+     * Move many files by pattern
+     * @param src the full uri base path
+     * @param dest the full uri destination path
+     * @param pattern the pattern (glob or regex)
+     * @param options the copy options
+     * @returns The file object if returning is true, the file uri otherwhise
+     */
+    public async moveFiles<RType extends IFile[] | string[] = IFile[], NativeResponseType = any>(src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+        throw new Error('Not implemented');
+    }
+
+    /**
      * Obtains the bucket name based on the configured strategy
      * @param name the bucket name
      * @param provider the provider session
      */
-    public resolveBucketAlias(name: string, provider: IStorageProvider): string {
+    public makeBucketAlias(name: string, provider: IStorageProvider): string {
         if (this.config.bucketAliasStrategy === 'NAME') {
             return name;
         } else if (this.config.bucketAliasStrategy === 'PROVIDER:NAME') {
@@ -178,7 +332,7 @@ export class FileStorage {
             name = this.config.defaultBucketName;
         }
         if (stringNullOrEmpty(name)) {
-            throw new StorageException(StorageExceptionType.INVALID_PARAMS, `You must provide the bucket name or add the default bucket name in the config options!`);
+            throwError(`You must provide the bucket name or add the default bucket name in the config options!`, StorageExceptionType.INVALID_PARAMS);
         }
         return this.buckets.get(name);
     }
@@ -239,7 +393,8 @@ export class FileStorage {
      * Given a file/directory uri, gets the provider, bucket and path
      * @param uri the uri
      */
-    public resolveFileUri(uri: string): ResolveUriReturn | false {
+    public resolveFileUri(uri: string | IFile): ResolveUriReturn | false {
+        uri = this.getFilenameFromFile(uri);
         try {
             const parsedUrl = new URL(uri);
             if (parsedUrl) {
@@ -253,11 +408,11 @@ export class FileStorage {
                 if (objectNull(bucket)) {
                     return false;
                 }
-                const path = parsedUrl.pathname;
+                const path = decodeURI(parsedUrl.pathname);
                 return {
                     provider,
                     bucket,
-                    path,
+                    path: this.normalizePath(path),
                 };
             }
             return false;
@@ -309,6 +464,11 @@ export class FileStorage {
     }
 
 
+    /**
+     * Creates a public url for a file
+     * @param fileUri the file uri
+     * @param options options passed to the function
+     */
     public async getPublicUrl(fileUri: string | IFile, options?: any): Promise<string> {
         if (typeof (this.config.urlGenerator) === 'function') {
             if (typeof (fileUri) !== 'string') {
@@ -319,7 +479,12 @@ export class FileStorage {
         return undefined;
     }
 
-    public async getSignedUrl(fileUri: string | IFile, options?: any): Promise<string> {
+    /**
+     * Creates a signed url for a file
+     * @param fileUri the file uri
+     * @param options options passed to the function
+     */
+    public async getSignedUrl(fileUri: string | IFile, options?: SignedUrlOptions): Promise<string> {
         if (typeof (this.config.signedUrlGenerator) === 'function') {
             if (typeof (fileUri) !== 'string') {
                 fileUri = this.makeFileUri(fileUri.bucket.provider, fileUri.bucket, fileUri.getAbsolutePath());
@@ -329,10 +494,20 @@ export class FileStorage {
         return undefined;
     }
 
+    /**
+     * Creates an instance of the provider
+     * @param ctor the provider constructor
+     * @param name the name of the provider
+     * @param config the confi options
+     */
     protected createProviderInstance(ctor: StorageProviderClassType<IStorageProvider>, name: string, config: any): IStorageProvider {
         return new ctor(this, name, config);
     }
 
+    /**
+     * Add listeners to the provider (remove, add, destroy)
+     * @param provider the provider
+     */
     protected addListenersToProvider(provider: IStorageProvider) {
         provider.on(StorageEventType.BUCKET_ADDED, (bucket: IBucket) => {
             this.buckets.add(bucket.absoluteName, bucket);
@@ -345,5 +520,20 @@ export class FileStorage {
         });
     }
 
+    /**
+     * Convert an exception to storage exeption
+     * @param ex the exeption source
+     * @param type the type of the exception
+     */
+    public parseException(ex: Error, type: StorageExceptionType = StorageExceptionType.NATIVE_ERROR) {
+        throw constructError(ex.message, type, ex);
+    }
+
+    public getFilenameFromFile(file: string | IFile = '') {
+        if (typeof (file) !== 'string') {
+            return file.getAbsolutePath();
+        }
+        return file;
+    }
 
 }

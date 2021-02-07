@@ -1,4 +1,4 @@
-import { StorageException, StorageExceptionType } from '../exceptions';
+import { StorageExceptionType, throwError } from '../exceptions';
 
 /**
  * Element registry for fast access with mirroring capacities
@@ -9,6 +9,12 @@ export class Registry<K = string, T = string> {
     protected elementsArray: T[] = [];
     protected mirrors: Registry<any, any>[] = [];
 
+    protected formatKey(key: K): K {
+        if (typeof (key) === 'string') {
+            return key.toLowerCase() as unknown as K;
+        }
+        return key;
+    }
 
     public addMirror(mirror: Registry) {
         this.mirrors.push(mirror);
@@ -33,12 +39,9 @@ export class Registry<K = string, T = string> {
      * @param replace should replace existing?
      */
     public add(key: K, element: T, replace = false): Registry<K, T> {
+        key = this.formatKey(key);
         if (this.has(key) && !replace) {
-            throw new StorageException(StorageExceptionType.DUPLICATED_ELEMENT,
-                `The element ${key} already exists!`,
-                {
-                    key,
-                });
+            throwError(`The element ${key} already exists!`, StorageExceptionType.DUPLICATED_ELEMENT, { key });
         }
         this.elements.set(key, element);
         this.elementsArray.push(element);
@@ -56,6 +59,7 @@ export class Registry<K = string, T = string> {
      * @param key the element key
      */
     public remove(key: K): Registry<K, T> {
+        key = this.formatKey(key);
         const element = this.get(key);
         if (element !== undefined && element !== null) {
             const index = this.elementsArray.findIndex(o => o === element);
@@ -82,6 +86,7 @@ export class Registry<K = string, T = string> {
      * @param key the element key
      */
     public has(key: K): boolean {
+        key = this.formatKey(key);
         return this.elements.has(key);
     }
 
@@ -90,6 +95,7 @@ export class Registry<K = string, T = string> {
      * @param key the element key
      */
     public get(key: K): T | undefined {
+        key = this.formatKey(key);
         return this.elements.get(key);
     }
 

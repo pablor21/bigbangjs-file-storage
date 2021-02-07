@@ -1,16 +1,21 @@
 import EventEmitter from 'events';
 import { FileStorage } from '../filestorage';
 import { BucketConfigOptions, IBucket } from '../buckets';
-import { Streams, CreateFileOptions, GetFileOptions, ListResult, StorageResponse, CopyFileOptions, MoveFileOptions, DeleteFileOptions, ListFilesOptions, CopyManyFilesOptions, Pattern, MoveManyFilesOptions, DeleteManyFilesOptions } from '../types';
+import { Streams, CreateFileOptions, GetFileOptions, ListResult, StorageResponse, CopyFileOptions, MoveFileOptions, DeleteFileOptions, ListFilesOptions, CopyManyFilesOptions, Pattern, MoveManyFilesOptions, DeleteManyFilesOptions, SignedUrlOptions } from '../types';
 import { IFile } from '../files';
+import { IncomingMessage } from 'http';
 
-export type StorageProviderClassType<T extends IStorageProvider> = new (storage: FileStorage, name: string, config: any) => T;
+export type StorageProviderClassType<T extends IStorageProvider> = new (storage: FileStorage, name: string, config?: any) => T;
 
 export interface IStorageProvider<BucketConfigType extends BucketConfigOptions = any, NativeResponseType = any> extends EventEmitter {
   readonly type: string;
   readonly name: string;
   readonly config: any;
   readonly storage: FileStorage;
+  /**
+   * Does this provider support copy/move between buckets
+   */
+  readonly supportsCrossBucketOperations: boolean;
   ready(): boolean;
   /**
    * Inits the provider instance (login?, create root dir?)
@@ -96,7 +101,7 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    * @param options the creation options
    * @returns The file object if returning is true, the file uri otherwhise
    */
-  putFile<RType extends IFile | string = any>(bucket: IBucket, fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+  putFile<RType extends IFile | string = any>(bucket: IBucket, fileName: string | IFile, contents: string | Buffer | Streams.Readable | IncomingMessage, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
 
   /**
    * Get a file stream
@@ -186,7 +191,7 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    * @param fileName the file/directory name
    * @param options options
    */
-  getSignedUrl(bucket: IBucket, fileName: string | IFile, options?: any): Promise<string>;
+  getSignedUrl(bucket: IBucket, fileName: string | IFile, options?: SignedUrlOptions): Promise<string>;
 
 
 }

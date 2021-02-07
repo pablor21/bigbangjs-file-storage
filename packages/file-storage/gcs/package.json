@@ -17,6 +17,7 @@
 	"scripts": {
 		"build": "yarn clean && yarn compile",
 		"clean": "rimraf ./dist",
+		"test": "jest --config jestconfig.json --runInBand",
 		"compile": "tsc -p tsconfig.build.json"
 	},
 	"devDependencies": {

@@ -1,12 +1,13 @@
 import { IBucket } from '../buckets';
 import { StorageResponse, Streams, GetFileOptions, MoveFileOptions, CopyFileOptions } from '../types';
 import { IFile, IFileMeta } from './file.interface';
+import { IncomingMessage } from 'http';
 import p from 'path';
 
 
 export class File implements IFile {
 
-    protected contents: string | Buffer | Streams.Readable;
+    protected contents: string | Buffer | Streams.Readable | IncomingMessage;
     public name: string;
     public path: string;
     public uri: string;
@@ -54,16 +55,16 @@ export class File implements IFile {
         return this.bucket.copyFile(this, dest, options);
     }
 
-    public setContents(contents: string | Buffer | Streams.Readable): void {
+    public setContents(contents: string | Buffer | Streams.Readable | IncomingMessage): void {
         this.contents = contents;
     }
 
-    public async getContents(options?: GetFileOptions): Promise<Buffer> {
-        return (await this.bucket.getFileContents(this, options)).result;
+    public async getContents(options?: GetFileOptions): Promise<StorageResponse<Buffer>> {
+        return (await this.bucket.getFileContents(this, options));
     }
 
-    public async getStream(options?: GetFileOptions): Promise<Streams.Readable> {
-        return (await this.bucket.getFileStream(this, options)).result;
+    public async getStream(options?: GetFileOptions): Promise<StorageResponse<Streams.Readable>> {
+        return (await this.bucket.getFileStream(this, options));
     }
 
 }

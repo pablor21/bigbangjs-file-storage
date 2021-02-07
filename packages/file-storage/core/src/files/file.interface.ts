@@ -1,5 +1,6 @@
 import { IBucket } from '../buckets';
-import { CopyFileOptions, CreateFileOptions, MoveFileOptions, StorageResponse } from '../types';
+import { CopyFileOptions, CreateFileOptions, GetFileOptions, MoveFileOptions, StorageResponse, Streams } from '../types';
+import { IncomingMessage } from 'http';
 
 export interface IFileMeta {
     name: string;
@@ -26,4 +27,7 @@ export interface IFile {
     save(options?: CreateFileOptions): Promise<StorageResponse<IFile>>;
     copy(dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<IFile>>;
     move(dest: string | IFile, options?: MoveFileOptions): Promise<StorageResponse<IFile>>;
+    setContents(contents: string | Buffer | Streams.Readable | IncomingMessage): void;
+    getContents(options?: GetFileOptions): Promise<StorageResponse<Buffer>>;
+    getStream(options?: GetFileOptions): Promise<StorageResponse<Streams.Readable>>;
 }

@@ -21,11 +21,13 @@ import {
     StorageResponse,
     Bucket,
     StorageEventType,
-    objectNull,
     IFileMeta,
     File,
     Pattern,
     DeleteManyFilesOptions,
+    SignedUrlOptions,
+    castValue,
+    CopyFileOptions,
 } from "@bigbangjs/file-storage";
 
 export type S3ProviderConfig = {
@@ -35,18 +37,21 @@ export type S3ProviderConfig = {
     keyFile?: string;
     dualStack?: boolean;
     ssl?: boolean;
-} & ProviderConfigOptions;
+    useNativeUrlGenerator?: boolean;
+} & ProviderConfigOptions & S3Client.ClientConfiguration;
 
 const defaultConfig: S3ProviderConfig = {
     region: 'us-east-2',
     dualStack: true,
     ssl: true,
+    useNativeUrlGenerator: true,
+
 };
 
 export type S3BucketConfig = {
     bucketName?: string;
-    tryCreate?: boolean
-
+    tryCreate?: boolean,
+    useNativeUrlGenerator?: boolean,
 } & BucketConfigOptions;
 
 export type S3NativeResponse = {
@@ -54,12 +59,13 @@ export type S3NativeResponse = {
 }
 
 export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfig, S3NativeResponse> implements IStorageProvider<S3BucketConfig, S3NativeResponse>{
-
+    public readonly supportsCrossBucketOperations: boolean;
     public readonly type: string = 'S3';
     protected client: S3Client;
 
     constructor(storage: FileStorage, name: string, config: string | S3ProviderConfig = defaultConfig) {
         super(storage, name, config);
+        this.supportsCrossBucketOperations = true;
         this.validateOptions();
     }
 
@@ -115,12 +121,22 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
 
         if (parsedUrl.searchParams.has('ssl') && (!stringNullOrEmpty(parsedUrl.searchParams.get('ssl')))) {
             const ssl = parsedUrl.searchParams.get('ssl');
-            ret.ssl = ssl === 'true' || ssl === '1';
+            ret.ssl = castValue<boolean>(ssl, 'boolean', true);
         }
 
         if (parsedUrl.searchParams.has('dualStack') && (!stringNullOrEmpty(parsedUrl.searchParams.get('dualStack')))) {
             const dualStack = parsedUrl.searchParams.get('dualStack');
-            ret.dualStack = dualStack === 'true' || dualStack === '1';
+            ret.dualStack = castValue<boolean>(dualStack, 'boolean', true);
+        }
+
+        if (parsedUrl.searchParams.has('useNativeUrlGenerator') && (!stringNullOrEmpty(parsedUrl.searchParams.get('useNativeUrlGenerator')))) {
+            const useNativeUrlGenerator = parsedUrl.searchParams.get('useNativeUrlGenerator');
+            ret.useNativeUrlGenerator = castValue<boolean>(useNativeUrlGenerator, 'boolean', true);
+        }
+
+        if (parsedUrl.searchParams.has('signedUrlExpiration') && (!stringNullOrEmpty(parsedUrl.searchParams.get('signedUrlExpiration')))) {
+            const defaultSignedUrlExpiration = parsedUrl.searchParams.get('signedUrlExpiration');
+            ret.defaultSignedUrlExpiration = castValue<number>(defaultSignedUrlExpiration, 'number', undefined);
         }
         return ret;
     }
@@ -154,6 +170,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
                 mode: '0777',
                 bucketName: name,
                 tryCreate: true,
+                useNativeUrlGenerator: this.config.useNativeUrlGenerator
             }, config || {});
 
             let response = null;
@@ -217,7 +234,8 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
                 ret.push({
                     name: c.Name,
                     mode: options.mode,
-                    bucketName: c.Name
+                    bucketName: c.Name,
+                    useNativeUrlGenerator: this.config.useNativeUrlGenerator
                 })
             });
 
@@ -226,6 +244,30 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
             this.parseException(ex);
         }
     }
+
+    public async getPublicUrl(bucket: IBucket, fileName: string | IFile, options?: any): Promise<string> {
+        if (this.shouldUseNativeUrlGenerator(bucket)) {
+            return `https://${bucket.config.bucketName}.s3.amazonaws.com/${this.resolveBucketPath(bucket, fileName)}`;
+        } else {
+            return super.getPublicUrl(bucket, fileName, options);
+        }
+    }
+
+    public async getSignedUrl(bucket: IBucket, fileName: string | IFile, options?: SignedUrlOptions): Promise<string> {
+        options = options || {};
+        options.expiration = options.expiration || bucket.config.defaultSignedUrlExpiration || this.config.defaultSignedUrlExpiration || this.storage.config.defaultSignedUrlExpiration;
+        if (this.shouldUseNativeUrlGenerator(bucket)) {
+            return this.client.getSignedUrl('getObject', {
+                Bucket: bucket.config.bucketName,
+                Key: this.resolveBucketPath(bucket, fileName),
+                Expires: options.expiration
+            });
+
+        } else {
+            return super.getSignedUrl(bucket, fileName, options);
+        }
+    }
+
 
     public async deleteFile(bucket: IBucket, path: string | IFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, S3NativeResponse>> {
         await this.makeReady();
@@ -250,9 +292,6 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
 
     public async deleteFiles(bucket: IBucket, path: string, pattern: Pattern = '**', options?: DeleteManyFilesOptions): Promise<StorageResponse<boolean, S3NativeResponse>> {
         await this.makeReady();
-        if (this._buckets.list().filter(f => f).length === 0) {
-            console.log('empty')
-        }
         if (!bucket.canWrite()) {
             throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
         }
@@ -279,6 +318,30 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
 
             const response = await this.client.deleteObjects(params).promise();
             return this.makeResponse(true, response);
+        } catch (ex) {
+            this.parseException(ex);
+        }
+    }
+
+    public async copyFile<RType extends string | IFile = IFile>(bucket: IBucket, src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, S3NativeResponse>> {
+        await this.makeReady();
+        if (!bucket.canWrite()) {
+            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
+        }
+        try {
+            src = this.resolveBucketPath(bucket, src);
+            dest = this.resolveBucketPath(bucket, dest);
+            const params: S3Client.CopyObjectRequest = {
+                Bucket: bucket.config.bucketName,
+                CopySource: bucket.config.bucketName + '/' + src,
+                Key: dest
+            };
+            const result = await this.client.copyObject(params).promise();
+            if (this.shouldReturnObject(options?.returning)) {
+                return this.makeResponse(await this.generateFileObject(bucket, dest), result);
+            }
+            return this.makeResponse(this.getStorageUri(bucket, dest), result);
+
         } catch (ex) {
             this.parseException(ex);
         }
@@ -491,18 +554,10 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
         return this.makeResponse(true, {});
     }
 
-    // protected getFilenameFromFile(file: string | IFile = '') {
-    //     let ret = '';
-    //     if (typeof (file) !== 'string') {
-    //         ret = file.getAbsolutePath();
-    //     }
-    //     if (ret.indexOf('/') === 0) {
-    //         ret = ret.substring(1);
-    //     } else {
-    //         ret = file as string;
-    //     }
-    //     return this.normalizePath(ret);
-    // }
+    protected shouldUseNativeUrlGenerator(bucket: IBucket): boolean {
+        return bucket.config.useNativeUrlGenerator === true || (bucket.config.useNativeUrlGenerator === undefined && this.config.useNativeUrlGenerator === true);
+    }
+
 
     protected resolveBucketPath(bucket: IBucket, dir?: string | IFile) {
         dir = this.getFilenameFromFile(dir);

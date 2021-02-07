@@ -5,4 +5,5 @@ export type ProviderConfigOptions = {
     uri?: string;
     type?: string;
     autoCleanup?: boolean;
+    defaultSignedUrlExpiration?: number;
 };

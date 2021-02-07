@@ -1,4 +1,4 @@
-import { StorageResponse, ListResult, GetFileOptions, Streams, CreateFileOptions, CopyFileOptions, ListFilesOptions, MoveFileOptions, DeleteFileOptions, CopyManyFilesOptions, MoveManyFilesOptions, Pattern, DeleteManyFilesOptions } from '../types';
+import { StorageResponse, ListResult, GetFileOptions, Streams, CreateFileOptions, CopyFileOptions, ListFilesOptions, MoveFileOptions, DeleteFileOptions, CopyManyFilesOptions, MoveManyFilesOptions, Pattern, DeleteManyFilesOptions, SignedUrlOptions } from '../types';
 import { canRead, canWrite } from '../lib';
 import { IBucket } from './bucket.interface';
 import { BucketConfigOptions } from './types';
@@ -90,7 +90,7 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         return this.provider.getPublicUrl(this, fileName, options);
     }
 
-    public async getSignedUrl(fileName: string | IFile, options?: any): Promise<string> {
+    public async getSignedUrl(fileName: string | IFile, options?: SignedUrlOptions): Promise<string> {
         return this.provider.getSignedUrl(this, fileName, options);
     }
 

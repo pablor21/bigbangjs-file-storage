@@ -1,7 +1,8 @@
 import { IStorageProvider } from '../providers';
 import { BucketConfigOptions } from './types';
+import { IncomingMessage } from 'http';
 import { IFile } from '../files';
-import { Streams, ListResult, StorageResponse, CreateFileOptions, GetFileOptions, MoveFileOptions, CopyFileOptions, DeleteFileOptions, ListFilesOptions, CopyManyFilesOptions, Pattern, MoveManyFilesOptions, DeleteManyFilesOptions } from '../types';
+import { Streams, ListResult, StorageResponse, CreateFileOptions, GetFileOptions, MoveFileOptions, CopyFileOptions, DeleteFileOptions, ListFilesOptions, CopyManyFilesOptions, Pattern, MoveManyFilesOptions, DeleteManyFilesOptions, SignedUrlOptions } from '../types';
 
 export type BucketClassType<T extends IBucket> = new (provider: IStorageProvider, name: string, config?: any) => T;
 
@@ -31,18 +32,18 @@ export interface IBucket<ConfigType extends BucketConfigOptions = any, NativeRes
     canRead(): boolean;
     canWrite(): boolean;
 
-/**
-    * Unregister the bucket from the provider session
-    * THIS METHOD DOES NOT DELETES THE DIR OR CLOUD BUCKET, JUST UNREGISTERS THE BUCKET FROM THE PROVIDER SOURCE (filesystem or cloud)
-    * @param name the name of the bucket
-    */
-   remove(): Promise<StorageResponse<boolean>>;
-   /**
-    * WARNING!!!! THIS METHOD DELETES THE DIR OR CLOUD BUCKET
-    * Destroy the bucket from the provider (removes the dir or delete from the cloud)
-    * @param name the name of the bucket
-    */
-   destroy(): Promise<StorageResponse<boolean, NativeResponseType>>;
+    /**
+      * Unregister the bucket from the provider session
+     * THIS METHOD DOES NOT DELETES THE DIR OR CLOUD BUCKET, JUST UNREGISTERS THE BUCKET FROM THE PROVIDER SOURCE (filesystem or cloud)
+     * @param name the name of the bucket
+     */
+    remove(): Promise<StorageResponse<boolean>>;
+    /**
+     * WARNING!!!! THIS METHOD DELETES THE DIR OR CLOUD BUCKET
+     * Destroy the bucket from the provider (removes the dir or delete from the cloud)
+     * @param name the name of the bucket
+     */
+    destroy(): Promise<StorageResponse<boolean, NativeResponseType>>;
 
     /**
      * Removes a file or files
@@ -85,7 +86,7 @@ export interface IBucket<ConfigType extends BucketConfigOptions = any, NativeRes
      * @param options the creation options
      * @returns The file object if returning is true, the file uri otherwhise
      */
-    putFile<RType extends IFile | string = IFile>(fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+    putFile<RType extends IFile | string = IFile>(fileName: string | IFile, contents: string | Buffer | Streams.Readable | IncomingMessage, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
 
     /**
      * Get a file stream
@@ -165,5 +166,5 @@ export interface IBucket<ConfigType extends BucketConfigOptions = any, NativeRes
      * @param fileName the file/directory name
      * @param options options
      */
-    getSignedUrl(fileName: string | IFile, options?: any): Promise<string>;
+    getSignedUrl(fileName: string | IFile, options?: SignedUrlOptions): Promise<string>;
 }

@@ -1,4 +1,4 @@
-import { Bucket } from '@bigbangjs/file-storage';
+import { Bucket, Streams } from '@bigbangjs/file-storage';
 import fs from 'fs-extra';
 import { generateBuckets, rootPath } from '../functions';
 import https from 'https';
@@ -79,7 +79,11 @@ export const suite002 = (autoRemove = true) => describe('Siute 003', () => {
 
 function makeRequest(url: string): Promise<any> {
     const p = new Promise((resolve) => {
-        https.get(url, response => resolve(response));
+        https.get(url, response => {
+            const stream = new Streams.Writable();
+            response.pipe(stream);
+            resolve(stream);
+        });
     });
     return p;
 }

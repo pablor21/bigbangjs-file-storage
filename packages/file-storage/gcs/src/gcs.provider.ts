@@ -41,10 +41,12 @@ export type FileSystemNativeResponse = {
 }
 
 export class GCSProvider extends AbstractProvider<GCSProviderConfig, FileSystemBucketConfig, FileSystemNativeResponse> implements IStorageProvider<FileSystemBucketConfig, FileSystemNativeResponse>{
-   
+    public supportsCrossBucketOperations: boolean;
+
     public readonly type: string = 'GCS';
     constructor(storage: FileStorage, name: string, config: string | GCSProviderConfig = defaultConfig) {
         super(storage, name, config);
+        this.supportsCrossBucketOperations = true;
         this.validateOptions();
     }
 

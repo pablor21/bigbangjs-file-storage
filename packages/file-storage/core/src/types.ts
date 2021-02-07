@@ -140,7 +140,12 @@ export type FileStorageConfigOptions = {
     /**
      * Signed url generator
      */
-    signedUrlGenerator?: (uri: string, options?: any) => Promise<string>;
+    signedUrlGenerator?: (uri: string, options?: SignedUrlOptions) => Promise<string>;
+
+    /**
+     * signed url default expiration time (in seconds)
+     */
+    defaultSignedUrlExpiration: number;
 
     /**
      * Function to obtain a regex based on glob pattern
@@ -188,6 +193,11 @@ export type ResolveUriReturn = {
     provider: IStorageProvider;
     bucket: IBucket;
     path: string;
+};
+
+export type SignedUrlOptions = {
+    expiration?: number;
+    nativeConfig?: any;
 };
 
 // Stream implementation

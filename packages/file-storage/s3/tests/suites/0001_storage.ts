@@ -1,10 +1,9 @@
 import { Bucket, FileStorage, StorageException } from '@bigbangjs/file-storage';
 import { S3BucketConfig, S3Provider, S3ProviderConfig } from '../../src';
 import { generateStorage } from '../functions';
+import path from 'path';
 
-
-FileStorage.registerProviderType('s3', S3Provider);
-
+const credentialsFile = path.join(__dirname, '..', '..','private', 'credentials.json');
 
 export const suite001 = (autoRemove = true) => describe('Suite 001', () => {
 
@@ -17,11 +16,11 @@ export const suite001 = (autoRemove = true) => describe('Suite 001', () => {
 
     const objProviderConfig01: S3ProviderConfig = {
         region: 'us-east-2',
-        keyFile: './private/s3/credentials.json',
+        keyFile: credentialsFile,
         type: 's3'
     };
     const urlProviderConfig02: S3ProviderConfig = {
-        uri: 's3://us-east-2/?keyFile=./private/s3/credentials.json'
+        uri: `s3://us-east-2/?keyFile=${credentialsFile}`
     };
 
 

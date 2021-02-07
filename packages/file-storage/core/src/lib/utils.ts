@@ -88,3 +88,26 @@ export function slug(input: string, replacement = '-'): string {
     }
     return input;
 }
+
+
+export function castValue<T extends number | string | boolean | Record<string, unknown> | (new (...args: any) => T)>(value: any, type: 'number' | 'boolean' | 'object' | 'string' | 'object' | (new (...args: any) => T), defaultValue: T = undefined): T {
+    if (objectNull(value)) {
+        return defaultValue;
+    }
+    if (typeof (value) === type) {
+        return value;
+    }
+
+    switch (type) {
+        case 'string':
+            return value.toString();
+        case 'number':
+            return Number(value.toString()) as unknown as T;
+        case 'boolean':
+            return ((value.toString()) === 'true' || (value.toString()) === '1') as T;
+        case 'object':
+            return value;
+        default:
+            return new type(value);
+    }
+}
