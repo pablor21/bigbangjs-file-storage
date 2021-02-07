@@ -3,7 +3,7 @@ import { canRead, canWrite } from '../lib';
 import { IBucket } from './bucket.interface';
 import { BucketConfigOptions } from './types';
 import { IStorageProvider } from '../providers';
-import { IFile } from '../files';
+import { IStorageFile } from '../files';
 
 export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponseType = any> implements IBucket<ConfigType, NativeResponseType> {
 
@@ -20,9 +20,8 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         this.provider = provider;
     }
 
-
-    public log(level: 'info' | 'debug' | 'warn' | 'error', ...args: any) {
-        this.provider.storage.log(level, ...args);
+    public getNativePath(path: string | IStorageFile): string {
+        return this.provider.getNativePath(this, path);
     }
 
     public async remove(): Promise<StorageResponse<boolean>> {
@@ -41,7 +40,7 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         return canWrite(this.config.mode);
     }
 
-    public async deleteFile(dir: string | IFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, NativeResponseType>> {
+    public async deleteFile(dir: string | IStorageFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, NativeResponseType>> {
         return this.provider.deleteFile(this, dir, options);
     }
 
@@ -49,62 +48,61 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         return this.provider.deleteFiles(this, dir, pattern, options);
     }
 
-    public async listFiles<RType extends IFile[] | string[] = IFile[]>(path?: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, NativeResponseType>> {
+    public async listFiles<RType extends IStorageFile[] | string[] = IStorageFile[]>(path?: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, NativeResponseType>> {
         return this.provider.listFiles(this, path, options);
     }
 
-    public async fileExists<RType extends IFile | boolean = IFile>(path: string | IFile, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async fileExists<RType extends IStorageFile | boolean = IStorageFile>(path: string | IStorageFile, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.fileExists(this, path, returning);
     }
 
-    public async getFile<Rtype extends IFile = IFile>(path: string): Promise<StorageResponse<Rtype, NativeResponseType>> {
+    public async getFile<Rtype extends IStorageFile = IStorageFile>(path: string): Promise<StorageResponse<Rtype, NativeResponseType>> {
         return this.provider.getFile(this, path);
     }
 
-    public async putFile<RType extends IFile | string = IFile>(fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async putFile<RType extends IStorageFile | string = IStorageFile>(fileName: string | IStorageFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.putFile(this, fileName, contents, options);
     }
 
-    public async getFileStream(fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, NativeResponseType>> {
+    public async getFileStream(fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, NativeResponseType>> {
         return this.provider.getFileStream(this, fileName, options);
     }
 
-    public async getFileContents(fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>> {
+    public async getFileContents(fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>> {
         return this.provider.getFileContents(this, fileName, options);
     }
 
-    public async copyFile<RType extends IFile | string = IFile>(src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async copyFile<RType extends IStorageFile | string = IStorageFile>(src: string | IStorageFile, dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.copyFile(this, src, dest, options);
     }
 
-    public async moveFile<RType extends IFile | string = IFile>(src: string | IFile, dest: string | IFile, options?: MoveFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async moveFile<RType extends IStorageFile | string = IStorageFile>(src: string | IStorageFile, dest: string | IStorageFile, options?: MoveFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.moveFile(this, src, dest, options);
     }
 
 
-    public getStorageUri(fileName: string | IFile): string {
+    public getStorageUri(fileName: string | IStorageFile): string {
         return this.provider.getStorageUri(this, fileName);
     }
 
-    public async getPublicUrl(fileName: string | IFile, options?: any): Promise<string> {
+    public async getPublicUrl(fileName: string | IStorageFile, options?: any): Promise<string> {
         return this.provider.getPublicUrl(this, fileName, options);
     }
 
-    public async getSignedUrl(fileName: string | IFile, options?: SignedUrlOptions): Promise<string> {
+    public async getSignedUrl(fileName: string | IStorageFile, options?: SignedUrlOptions): Promise<string> {
         return this.provider.getSignedUrl(this, fileName, options);
     }
 
-    public async copyFiles<RType extends IFile[] | string[] = IFile[]>(src: string, dest: string, pattern: Pattern, options?: CopyManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async copyFiles<RType extends IStorageFile[] | string[] = IStorageFile[]>(src: string, dest: string, pattern: Pattern, options?: CopyManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.copyFiles(this, src, dest, pattern, options);
     }
 
-    public async moveFiles<RType extends IFile[] | string[] = IFile[]>(src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async moveFiles<RType extends IStorageFile[] | string[] = IStorageFile[]>(src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         return this.provider.moveFiles(this, src, dest, pattern, options);
     }
 
     public async removeEmptyDirectories(basePath = '/'): Promise<StorageResponse<boolean, NativeResponseType>> {
         return this.provider.removeEmptyDirectories(this, basePath);
     }
-
 
 }

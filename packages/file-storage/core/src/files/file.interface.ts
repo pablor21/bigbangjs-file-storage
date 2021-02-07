@@ -14,7 +14,7 @@ export interface IFileMeta {
     exists: boolean;
 }
 
-export interface IFile {
+export interface IStorageFile {
     bucket: IBucket;
     name: string;
     path: string;
@@ -24,10 +24,11 @@ export interface IFile {
     getStorageUri(): string;
     getPublicUrl(options?: any): Promise<string>;
     getSignedUrl(options?: any): Promise<string>;
-    save(options?: CreateFileOptions): Promise<StorageResponse<IFile>>;
-    copy(dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<IFile>>;
-    move(dest: string | IFile, options?: MoveFileOptions): Promise<StorageResponse<IFile>>;
+    save(options?: CreateFileOptions): Promise<StorageResponse<IStorageFile>>;
+    copy(dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<IStorageFile>>;
+    move(dest: string | IStorageFile, options?: MoveFileOptions): Promise<StorageResponse<IStorageFile>>;
     setContents(contents: string | Buffer | Streams.Readable | IncomingMessage): void;
     getContents(options?: GetFileOptions): Promise<StorageResponse<Buffer>>;
     getStream(options?: GetFileOptions): Promise<StorageResponse<Streams.Readable>>;
+    getNativePath(): string;
 }

@@ -8,8 +8,8 @@ import {
     DeleteFileOptions,
     FileStorage,
     IBucket,
-    IFile,
-    File,
+    IStorageFile,
+    StorageFile,
     IFileMeta,
     IStorageProvider,
     ProviderConfigOptions,
@@ -22,10 +22,7 @@ import {
     GetFileOptions,
     ListFilesOptions,
     ListResult,
-    Pattern,
     MoveFileOptions,
-    DeleteManyFilesOptions,
-    throwError,
     constructError,
 
 } from "@bigbangjs/file-storage";
@@ -47,6 +44,7 @@ export type FileSystemNativeResponse = {
 }
 
 export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfig, FileSystemBucketConfig, FileSystemNativeResponse> implements IStorageProvider<FileSystemBucketConfig, FileSystemNativeResponse>{
+
     public readonly supportsCrossBucketOperations: boolean;
     public readonly type: string = 'FILESYSTEM';
     constructor(storage: FileStorage, name: string, config: string | FileSystemProviderConfig = defaultConfig) {
@@ -139,7 +137,9 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             const bucket = this._buckets.get(name)!;
             this.emit(StorageEventType.BEFORE_DESTROY_BUCKET, bucket);
             this._buckets.remove(name);
-            await fs.promises.rmdir(this.resolveBucketPath(bucket));
+            try {
+                await fs.promises.rmdir(this.resolveBucketPath(bucket));
+            } catch (ex) { }
             this.emit(StorageEventType.BUCKET_DESTROYED, bucket);
             return this.makeResponse(true);
         } catch (ex) {
@@ -179,7 +179,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
 
 
     //  BUCKET API
-    public async deleteFile(bucket: IBucket<FileSystemNativeResponse>, dir: string | IFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, FileSystemNativeResponse>> {
+    public async deleteFile(bucket: IBucket<FileSystemNativeResponse>, dir: string | IStorageFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, FileSystemNativeResponse>> {
         await this.makeReady();
         this.checkWritePermission(bucket);
         this.isFileOrTrow(this.getFilenameFromFile(dir), 'path');
@@ -199,7 +199,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         }
     }
 
-    public async fileExists<RType extends boolean | IFile = any>(bucket: IBucket<any, any>, path: string | IFile, returning?: boolean): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
+    public async fileExists<RType extends boolean | IStorageFile = any>(bucket: IBucket<any, any>, path: string | IStorageFile, returning?: boolean): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         await this.makeReady();
         this.checkReadPermission(bucket);
         try {
@@ -217,7 +217,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         }
     }
 
-    public async listFiles<RType extends string[] | IFile[] = IFile[]>(bucket: IBucket<any, any>, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, FileSystemNativeResponse>> {
+    public async listFiles<RType extends string[] | IStorageFile[] = IStorageFile[]>(bucket: IBucket<any, any>, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, FileSystemNativeResponse>> {
         await this.makeReady();
         this.checkReadPermission(bucket);
         try {
@@ -249,7 +249,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         }
     }
 
-    public async putFile<RType extends string | IFile = any>(bucket: IBucket<any, any>, fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
+    public async putFile<RType extends string | IStorageFile = any>(bucket: IBucket<any, any>, fileName: string | IStorageFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         await this.makeReady();
         this.checkWritePermission(bucket);
 
@@ -305,7 +305,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         }
     }
 
-    public async getFileStream(bucket: IBucket<any, any>, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, FileSystemNativeResponse>> {
+    public async getFileStream(bucket: IBucket<any, any>, fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, FileSystemNativeResponse>> {
         await this.makeReady();
         this.checkReadPermission(bucket);
         const absPath = this.resolveBucketPath(bucket, fileName);
@@ -319,7 +319,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
 
 
 
-    public async copyFile<RType extends string | IFile = IFile>(bucket: IBucket<any, any>, src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
+    public async copyFile<RType extends string | IStorageFile = IStorageFile>(bucket: IBucket<any, any>, src: string | IStorageFile, dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         await this.makeReady();
         this.checkReadPermission(bucket);
 
@@ -331,7 +331,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
                 dest = (`${dest}/${this.extractFilenameFromPath(src)}`);
                 this.isFileOrTrow(dest, 'dest');
             }
-            const destResolvedUri = this.resolveUri(bucket, dest, true);
+            const destResolvedUri = this.resolveFileUri(bucket, dest, true);
             this.checkWritePermission(destResolvedUri.bucket);
             dest = this.resolveBucketPath(destResolvedUri.bucket, destResolvedUri.path);
             if (this.isDirectory(dest)) {
@@ -350,7 +350,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
 
     }
 
-    public async moveFile<RType extends IFile | string = IFile>(bucket: IBucket<any, any>, src: string | IFile, dest: string | IFile, options?: MoveFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
+    public async moveFile<RType extends IStorageFile | string = IStorageFile>(bucket: IBucket<any, any>, src: string | IStorageFile, dest: string | IStorageFile, options?: MoveFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         await this.makeReady();
         this.checkReadPermission(bucket);
         try {
@@ -361,7 +361,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
                 dest = (`${dest}/${this.extractFilenameFromPath(src)}`);
                 this.isFileOrTrow(dest, 'dest');
             }
-            const destResolvedUri = this.resolveUri(bucket, dest, true);
+            const destResolvedUri = this.resolveFileUri(bucket, dest, true);
             this.checkWritePermission(destResolvedUri.bucket);
             dest = this.resolveBucketPath(destResolvedUri.bucket, destResolvedUri.path);
 
@@ -398,6 +398,10 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         }
     }
 
+    public getNativePath(bucket: IBucket, fileName: string | IStorageFile): string {
+        return this.resolveBucketPath(bucket, fileName);
+    }
+
     protected async cleanDirectories(dir: string) {
         const stats = await fs.promises.stat(dir);
         if (!stats.isDirectory()) {
@@ -417,7 +421,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         }
     }
 
-    protected async generateList(dir: string, base: string, options: ListFilesOptions, type: 'DIRECTORY' | 'FILE' | 'BOTH' = 'FILE', bucket: IBucket, metaGenerator: (path: string, bucket: IBucket) => Promise<IFileMeta | IFile>, all: any[] = []) {
+    protected async generateList(dir: string, base: string, options: ListFilesOptions, type: 'DIRECTORY' | 'FILE' | 'BOTH' = 'FILE', bucket: IBucket, metaGenerator: (path: string, bucket: IBucket) => Promise<IFileMeta | IStorageFile>, all: any[] = []) {
         await this.makeReady();
 
         const absDir = this.normalizePath(path.join(base, dir));
@@ -505,7 +509,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         return meta;
     }
 
-    protected async generateFileObject(bucket: IBucket, src: string | IFile, meta?: IFileMeta): Promise<IFile | undefined> {
+    protected async generateFileObject(bucket: IBucket, src: string | IStorageFile, meta?: IFileMeta): Promise<IStorageFile | undefined> {
         await this.makeReady();
         const completeSrc = this.resolveBucketPath(bucket, src);
         let ret;
@@ -513,7 +517,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         if (!meta) {
             return;
         }
-        ret = new File(bucket, meta);
+        ret = new StorageFile(bucket, meta);
         ret.uri = this.storage.makeFileUri(this, bucket, src);
         if (typeof (src) === 'string') {
             return ret;
@@ -541,8 +545,8 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
      * @param bucket the target bucket
      * @param dir the path
      */
-    protected resolveBucketPath(bucket: IBucket, dir?: string | IFile, allowCrossBucket = false): string {
-        const resolved = this.resolveUri(bucket, dir, allowCrossBucket);
+    protected resolveBucketPath(bucket: IBucket, dir?: string | IStorageFile, allowCrossBucket = false): string {
+        const resolved = this.resolveFileUri(bucket, dir, allowCrossBucket);
         return path.join(this.config.root, this.getBucketRootPath(resolved.bucket), this.normalizePath(resolved.path) || '/').replace(/\\/g, '/');
     }
 
@@ -550,18 +554,5 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         const bucketPath = this.resolveBucketPath(bucket);
         return dir.replace(bucketPath, '');
     }
-
-    // protected resolvePath(source: string | IFile): string {
-    //     source = typeof (source) === 'string' ? source : source.getAbsolutePath();
-    //     source = source ? this.normalizePath(source) : source;
-    //     if (source.startsWith('/')) {
-    //         source = source.substr(1);
-    //     }
-    //     if (!source) {
-    //         return path.resolve(this.config.root);
-    //     }
-    //     return path.resolve(this.config.root, source);
-    // }
-
 
 }

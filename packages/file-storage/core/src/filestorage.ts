@@ -2,7 +2,7 @@ import { IBucket } from './buckets';
 import { VALID_PROVIDER_NAMES_REGEX } from './constants';
 import { StorageEventType } from './eventnames';
 import { constructError, StorageExceptionType, throwError } from './exceptions';
-import { IFile } from './files';
+import { IStorageFile } from './files';
 import { objectNull, Registry, resolveMime, stringNullOrEmpty, DefaultMatcher, IMatcher, slug, castValue } from './lib';
 import { IStorageProvider, ProviderConfigOptions, StorageProviderClassType } from './providers';
 import { AddProviderOptions, CopyFileOptions, CopyManyFilesOptions, FileStorageConfigOptions, LoggerType, MoveFileOptions, MoveManyFilesOptions, Pattern, ResolveUriReturn, SignedUrlOptions, StorageResponse } from './types';
@@ -166,7 +166,7 @@ export class FileStorage {
      * @param options the copy options
      * @returns The file object if returning is true, the file uri otherwhise
      */
-    public async copyFile<RType extends IFile | string = IFile, NativeResponseType = any>(src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async copyFile<RType extends IStorageFile | string = IStorageFile, NativeResponseType = any>(src: string | IStorageFile, dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         try {
             const srcAbsPath = this.resolveFileUri(src);
             const destAbsPath = this.resolveFileUri(dest);
@@ -189,7 +189,7 @@ export class FileStorage {
      * @param options the copy options
      * @returns The file object if returning is true, the file uri otherwhise
      */
-    public async copyFiles<RType extends IFile[] | string[] = IFile[], NativeResponseType = any>(src: string, dest: string, pattern: Pattern, options?: CopyManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async copyFiles<RType extends IStorageFile[] | string[] = IStorageFile[], NativeResponseType = any>(src: string, dest: string, pattern: Pattern, options?: CopyManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         try {
             const srcAbsPath = this.resolveFileUri(this.getFilenameFromFile(src));
             const destAbsPath = this.resolveFileUri(this.getFilenameFromFile(dest));
@@ -217,32 +217,13 @@ export class FileStorage {
         }
     }
 
-    // await this.makeReady();
-    //     if (!bucket.canWrite()) {
-    //         throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
-    //     }
-    //     try {
-    //         src = this.resolveFileUri(bucket, src);
-    //         const toMove = await this.listFiles(bucket, src, { pattern, returning: false, recursive: true, filter: options.filter });
-    //         const promises: Promise<StorageResponse<IFile | string, NativeResponseType>>[] = [];
-    //         toMove.result.entries.map(c => {
-    //             const f = this.resolveFileUri(bucket, this.getFilenameFromFile(c));
-    //             const destPath = path.join(dest, f.replace(src, ''));
-    //             promises.push(this.moveFile(bucket, c, destPath, {
-    //                 cleanup: false, // avoid cleanup
-    //                 returning: options?.returning,
-    //                 overwrite: options?.overwrite,
-    //             }));
-    //         });
-    //         const result = await Promise.all(promises);
-    //         if (this.shouldCleanupDirectory(bucket, options?.cleanup)) {
-    //             await this.removeEmptyDirectories(bucket, src);
-    //         }
-    //         return this.makeResponse(result);
-    //     } catch (ex) {
-    //         this.parseException(ex);
-    //     }
-
+    public getNativePath(path: string | IStorageFile): string {
+        const parts = this.resolveFileUri(path);
+        if (!parts) {
+            return;
+        }
+        return parts.provider.getNativePath(parts.bucket, parts.path);
+    }
 
     /**
      * Move a file
@@ -251,7 +232,7 @@ export class FileStorage {
      * @param options the move options
      * @returns The file object if returning is true, the file uri otherwhise
      */
-    public async moveFile<RType extends IFile | string = IFile, NativeResponseType = any>(src: string | IFile, dest: string | IFile, options?: MoveFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async moveFile<RType extends IStorageFile | string = IStorageFile, NativeResponseType = any>(src: string | IStorageFile, dest: string | IStorageFile, options?: MoveFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         try {
             const srcAbsPath = this.resolveFileUri(this.getFilenameFromFile(src));
             const destAbsPath = this.resolveFileUri(this.getFilenameFromFile(dest));
@@ -269,6 +250,10 @@ export class FileStorage {
         }
     }
 
+    /**
+     * Normalize a path
+     * @param dir 
+     */
     public normalizePath(dir?: string): string {
         if (!dir) {
             return '';
@@ -304,7 +289,7 @@ export class FileStorage {
      * @param options the copy options
      * @returns The file object if returning is true, the file uri otherwhise
      */
-    public async moveFiles<RType extends IFile[] | string[] = IFile[], NativeResponseType = any>(src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async moveFiles<RType extends IStorageFile[] | string[] = IStorageFile[], NativeResponseType = any>(src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         throw new Error('Not implemented');
     }
 
@@ -343,7 +328,7 @@ export class FileStorage {
      * @param bucket the bucket
      * @param fileName the filename
      */
-    public makeFileUri(provider: IStorageProvider | string, bucket: IBucket | string, fileName?: string | IFile) {
+    public makeFileUri(provider: IStorageProvider | string, bucket: IBucket | string, fileName?: string | IStorageFile) {
         let url = '';
         if (typeof (provider) === 'string') {
             provider = this.getProvider(provider);
@@ -380,7 +365,7 @@ export class FileStorage {
      * Returns a file  from it's uri
      * @param uri the file or directory uri
      */
-    public async getFile<T extends IFile = IFile>(uri: string): Promise<StorageResponse<IFile>> {
+    public async getFile<T extends IStorageFile = IStorageFile>(uri: string): Promise<StorageResponse<IStorageFile>> {
         const parameters = this.resolveFileUri(uri);
         if (parameters) {
             return parameters.bucket.getFile<T>(uri);
@@ -393,32 +378,31 @@ export class FileStorage {
      * Given a file/directory uri, gets the provider, bucket and path
      * @param uri the uri
      */
-    public resolveFileUri(uri: string | IFile): ResolveUriReturn | false {
+    public resolveFileUri(uri: string | IStorageFile): ResolveUriReturn | false {
+
         uri = this.getFilenameFromFile(uri);
-        try {
-            const parsedUrl = new URL(uri);
-            if (parsedUrl) {
-                const providerName = parsedUrl.protocol.replace(':', '');
-                const provider = this.getProvider(providerName);
-                if (objectNull(provider)) {
-                    return false;
-                }
-                const bucketName = parsedUrl.host;
-                const bucket = provider.getBucket(bucketName);
-                if (objectNull(bucket)) {
-                    return false;
-                }
-                const path = decodeURI(parsedUrl.pathname);
-                return {
-                    provider,
-                    bucket,
-                    path: this.normalizePath(path),
-                };
+
+        const partsRegexp = /(?<protocol>[a-zA-Z0-9]+):\/\/(?<bucket>[a-zA-Z0-9\:]+)\/?(?<folder>.+)/;
+        const parts = uri.match(partsRegexp);
+        if (parts && parts.length > 0) {
+            const providerName = parts.groups.protocol.replace(':', '');
+            const provider = this.getProvider(providerName);
+            if (objectNull(provider)) {
+                throw constructError(`Provider ${providerName} not found`, StorageExceptionType.NOT_FOUND);
             }
-            return false;
-        } catch (ex) {
-            return false;
+            const bucketName = parts.groups.bucket;
+            const bucket = provider.getBucket(bucketName);
+            if (objectNull(bucket)) {
+                throw constructError(`Bucket not found in the provider ${providerName}`, StorageExceptionType.NOT_FOUND);
+            }
+            const path = decodeURI(parts.groups.folder);
+            return {
+                provider,
+                bucket,
+                path: this.normalizePath(path),
+            };
         }
+        return false;
     }
 
     /**
@@ -469,7 +453,7 @@ export class FileStorage {
      * @param fileUri the file uri
      * @param options options passed to the function
      */
-    public async getPublicUrl(fileUri: string | IFile, options?: any): Promise<string> {
+    public async getPublicUrl(fileUri: string | IStorageFile, options?: any): Promise<string> {
         if (typeof (this.config.urlGenerator) === 'function') {
             if (typeof (fileUri) !== 'string') {
                 fileUri = this.makeFileUri(fileUri.bucket.provider, fileUri.bucket, fileUri.getAbsolutePath());
@@ -484,7 +468,7 @@ export class FileStorage {
      * @param fileUri the file uri
      * @param options options passed to the function
      */
-    public async getSignedUrl(fileUri: string | IFile, options?: SignedUrlOptions): Promise<string> {
+    public async getSignedUrl(fileUri: string | IStorageFile, options?: SignedUrlOptions): Promise<string> {
         if (typeof (this.config.signedUrlGenerator) === 'function') {
             if (typeof (fileUri) !== 'string') {
                 fileUri = this.makeFileUri(fileUri.bucket.provider, fileUri.bucket, fileUri.getAbsolutePath());
@@ -529,7 +513,7 @@ export class FileStorage {
         throw constructError(ex.message, type, ex);
     }
 
-    public getFilenameFromFile(file: string | IFile = '') {
+    public getFilenameFromFile(file: string | IStorageFile = '') {
         if (typeof (file) !== 'string') {
             return file.getAbsolutePath();
         }

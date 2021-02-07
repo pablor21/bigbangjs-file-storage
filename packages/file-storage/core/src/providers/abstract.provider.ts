@@ -9,7 +9,7 @@ import { objectNull, Registry, stringNullOrEmpty } from '../lib';
 import { CopyFileOptions, CopyManyFilesOptions, CreateFileOptions, DeleteFileOptions, DeleteManyFilesOptions, GetFileOptions, ListFilesOptions, ListResult, MoveFileOptions, MoveManyFilesOptions, Pattern, ResolveUriReturn, SignedUrlOptions, StorageResponse, Streams } from '../types';
 import { IStorageProvider } from './provider.interface';
 import { ProviderConfigOptions } from './types';
-import { IFile } from '../files';
+import { IStorageFile } from '../files';
 
 
 export abstract class AbstractProvider<ProviderConfigType extends ProviderConfigOptions, BucketConfigType extends BucketConfigOptions, NativeResponseType = any> extends EventEmitter implements IStorageProvider<BucketConfigType, NativeResponseType> {
@@ -64,28 +64,28 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         return this.makeResponse(this._buckets.list());
     }
 
-    public async getFile<Rtype extends IFile = IFile>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>> {
+    public async getFile<Rtype extends IStorageFile = IStorageFile>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>> {
         return await this.fileExists(bucket, path, true);
     }
 
 
-    public getStorageUri(bucket: IBucket, fileName: string | IFile): string {
+    public getStorageUri(bucket: IBucket, fileName: string | IStorageFile): string {
         return this.storage.makeFileUri(this, bucket, fileName);
     }
 
-    public async getPublicUrl(bucket: IBucket, fileName: string | IFile, options?: any): Promise<string> {
+    public async getPublicUrl(bucket: IBucket, fileName: string | IStorageFile, options?: any): Promise<string> {
         const uri = this.getStorageUri(bucket, fileName);
         return this.storage.getPublicUrl(uri, options);
     }
 
-    public async getSignedUrl(bucket: IBucket, fileName: string | IFile, options?: SignedUrlOptions): Promise<string> {
+    public async getSignedUrl(bucket: IBucket, fileName: string | IStorageFile, options?: SignedUrlOptions): Promise<string> {
         options = options || {};
         options.expiration = options.expiration || bucket.config.defaultSignedUrlExpiration || this.config.defaultSignedUrlExpiration || this.storage.config.defaultSignedUrlExpiration;
         const uri = this.getStorageUri(bucket, fileName);
         return this.storage.getSignedUrl(uri, options);
     }
 
-    public async getFileContents(bucket: IBucket, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>> {
+    public async getFileContents(bucket: IBucket, fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>> {
         await this.makeReady();
         this.checkReadPermission(bucket);
         const parts: any = [];
@@ -98,7 +98,7 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         return this.makeResponse(await promise);
     }
 
-    public async copyFiles<RType extends string[] | IFile[] = IFile[]>(bucket: IBucket, src: string, dest: string, pattern: Pattern = '**', options?: CopyManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async copyFiles<RType extends string[] | IStorageFile[] = IStorageFile[]>(bucket: IBucket, src: string, dest: string, pattern: Pattern = '**', options?: CopyManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         await this.makeReady();
         this.checkReadPermission(bucket);
 
@@ -107,12 +107,12 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         this.isDirectoryOrThrow(dest, 'dest');
 
         try {
-            const srcPath = this.resolveUri(bucket, src, false);
+            const srcPath = this.resolveFileUri(bucket, src, false);
             const ret: any = [];
             const toCopy = await this.listFiles(bucket, src, { pattern, returning: false, recursive: true, filter: options?.filter });
             const promises: Promise<StorageResponse<string, NativeResponseType>>[] = [];
             toCopy.result.entries.map(c => {
-                const fPath = this.resolveUri(bucket, c, false);
+                const fPath = this.resolveFileUri(bucket, c, false);
                 const destPath = `${dest}/${fPath.path.replace(srcPath.path, '')}`;
                 promises.push(this.copyFile(bucket, c, destPath, options));
             });
@@ -125,19 +125,19 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
     }
 
 
-    public async moveFiles<RType extends string[] | IFile[] = IFile[]>(bucket: IBucket, src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async moveFiles<RType extends string[] | IStorageFile[] = IStorageFile[]>(bucket: IBucket, src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         await this.makeReady();
         this.checkReadPermission(bucket);
         // both need to be directories
         this.isDirectoryOrThrow(src, 'src');
         this.isDirectoryOrThrow(dest, 'dest');
         try {
-            const srcPath = this.resolveUri(bucket, src, false);
+            const srcPath = this.resolveFileUri(bucket, src, false);
             const ret: any = [];
             const toMove = await this.listFiles(bucket, src, { pattern, returning: false, recursive: true, filter: options?.filter });
-            const promises: Promise<StorageResponse<IFile | string, NativeResponseType>>[] = [];
+            const promises: Promise<StorageResponse<IStorageFile | string, NativeResponseType>>[] = [];
             toMove.result.entries.map(c => {
-                const fPath = this.resolveUri(bucket, c, false);
+                const fPath = this.resolveFileUri(bucket, c, false);
                 const destPath = `${dest}/${fPath.path.replace(srcPath.path, '')}`;
                 promises.push(this.moveFile(bucket, c, destPath, {
                     cleanup: false, // avoid cleanup
@@ -182,13 +182,13 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
     }
 
 
-    public async copyFile<RType extends string | IFile = IFile>(bucket: IBucket, src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async copyFile<RType extends string | IStorageFile = IStorageFile>(bucket: IBucket, src: string | IStorageFile, dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         await this.makeReady();
         const stream = (await this.getFileStream(bucket, src)).result;
         return this.putFile(bucket, dest, stream, options);
     }
 
-    public async moveFile<RType extends string | IFile = IFile>(bucket: IBucket, src: string | IFile, dest: string | IFile, options?: MoveFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+    public async moveFile<RType extends string | IStorageFile = IStorageFile>(bucket: IBucket, src: string | IStorageFile, dest: string | IStorageFile, options?: MoveFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         await this.makeReady();
         const result = await this.copyFile<RType>(bucket, src, dest, options);
         await this.deleteFile(bucket, src, { cleanup: options?.cleanup });
@@ -202,25 +202,17 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
     public abstract addBucket(name: string, config?: BucketConfigType): Promise<StorageResponse<IBucket, NativeResponseType>>;
     public abstract destroyBucket(name: string): Promise<StorageResponse<boolean, NativeResponseType>>;
     public abstract listUnregisteredBuckets(creationOptions?: BucketConfigOptions): Promise<StorageResponse<BucketConfigType[], NativeResponseType>>;
-    public abstract deleteFile(bucket: IBucket, path: string | IFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
-    public abstract fileExists<RType extends IFile | boolean = any>(bucket: IBucket, path: string | IFile, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>>;
-    public abstract listFiles<RType extends IFile[] | string[] = IFile[]>(bucket: IBucket, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, NativeResponseType>>;
-    public abstract putFile<RType extends IFile | string = any>(bucket: IBucket, fileName: string | IFile, contents: string | Buffer | Streams.Readable | IncomingMessage, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
-    public abstract getFileStream(bucket: IBucket, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, NativeResponseType>>;
+    public abstract deleteFile(bucket: IBucket, path: string | IStorageFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
+    public abstract fileExists<RType extends IStorageFile | boolean = any>(bucket: IBucket, path: string | IStorageFile, returning?: boolean): Promise<StorageResponse<RType, NativeResponseType>>;
+    public abstract listFiles<RType extends IStorageFile[] | string[] = IStorageFile[]>(bucket: IBucket, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, NativeResponseType>>;
+    public abstract putFile<RType extends IStorageFile | string = any>(bucket: IBucket, fileName: string | IStorageFile, contents: string | Buffer | Streams.Readable | IncomingMessage, options?: CreateFileOptions): Promise<StorageResponse<RType, NativeResponseType>>;
+    public abstract getFileStream(bucket: IBucket, fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, NativeResponseType>>;
     public abstract removeEmptyDirectories(bucket: IBucket, path: string): Promise<StorageResponse<boolean, NativeResponseType>>;
     protected abstract parseConfig(config: string | ProviderConfigType): ProviderConfigType;
-    protected abstract generateFileObject(bucket: IBucket, path: string, options?: any): Promise<IFile>;
+    protected abstract generateFileObject(bucket: IBucket, path: string, options?: any): Promise<IStorageFile>;
 
-    protected resolveFileUri(bucket: IBucket, uri: string | IFile, allowCrossBucket = false): string {
-        uri = this.getFilenameFromFile(uri);
-        const parts = this.storage.resolveFileUri(uri);
-        if (parts && (parts.bucket === bucket ||
-            // the provider supports crossBucketsOperations
-            (parts.bucket !== bucket && parts.bucket.provider === bucket.provider && parts.provider === this && allowCrossBucket && this.supportsCrossBucketOperations))
-            && parts.provider === this) {
-            return this.normalizePath(parts.path);
-        }
-        return this.normalizePath(uri);
+    public getNativePath(bucket: IBucket, fileName: string | IStorageFile): string {
+        return this.resolveBucketPath(bucket, fileName);
     }
 
     /**
@@ -229,11 +221,11 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
      * @param dir the directory
      * @param allowCrossBucket allow cross buckets?
      */
-    protected resolveBucketPath(bucket: IBucket, dir?: string | IFile, allowCrossBucket = false): string {
-        return this.resolveUri(bucket, dir, allowCrossBucket).path;
+    protected resolveBucketPath(bucket: IBucket, dir?: string | IStorageFile, allowCrossBucket = false): string {
+        return this.resolveFileUri(bucket, dir, allowCrossBucket).path;
     }
 
-    public resolveUri(bucket: IBucket, src: string | IFile, allowCrossBucket = false): ResolveUriReturn {
+    public resolveFileUri(bucket: IBucket, src: string | IStorageFile, allowCrossBucket = false): ResolveUriReturn {
         const parts = this.storage.resolveFileUri(src);
         if (parts) {
             if (parts.provider !== this) {
@@ -298,7 +290,7 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         return this.makeResponse(true);
     }
 
-    protected makeFileUri(bucket: IBucket, fileName: string | IFile): string {
+    protected makeFileUri(bucket: IBucket, fileName: string | IStorageFile): string {
         return this.storage.makeFileUri(this, bucket, fileName);
     }
 
@@ -318,13 +310,13 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         return this.storage.makeBucketAlias(name, this);
     }
 
-    protected getFilenameFromFile(file: string | IFile = '') {
+    protected getFilenameFromFile(file: string | IStorageFile = '') {
         return this.storage.getFilenameFromFile(file);
     }
 
     protected isDirectory(path: string): boolean {
         if (stringNullOrEmpty(path)) {
-            return false;
+            return true;
         }
         return path.lastIndexOf('/') === path.length - 1;
     }

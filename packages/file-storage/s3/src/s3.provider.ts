@@ -5,7 +5,6 @@ import {
     AbstractProvider,
     IStorageProvider,
     FileStorage,
-    StorageException,
     ProviderConfigOptions,
     BucketConfigOptions,
     StorageExceptionType,
@@ -15,19 +14,20 @@ import {
     DeleteFileOptions,
     GetFileOptions,
     IBucket,
-    IFile,
+    IStorageFile,
     ListFilesOptions,
     ListResult,
     StorageResponse,
     Bucket,
     StorageEventType,
     IFileMeta,
-    File,
+    StorageFile,
     Pattern,
     DeleteManyFilesOptions,
     SignedUrlOptions,
     castValue,
     CopyFileOptions,
+    constructError,
 } from "@bigbangjs/file-storage";
 
 export type S3ProviderConfig = {
@@ -59,6 +59,7 @@ export type S3NativeResponse = {
 }
 
 export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfig, S3NativeResponse> implements IStorageProvider<S3BucketConfig, S3NativeResponse>{
+
     public readonly supportsCrossBucketOperations: boolean;
     public readonly type: string = 'S3';
     protected client: S3Client;
@@ -71,7 +72,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
 
     protected validateOptions() {
         if (stringNullOrEmpty(this.config.region) || stringNullOrEmpty(this.config.accessKeyId) || stringNullOrEmpty(this.config.secretAccessKey)) {
-            throw new StorageException(StorageExceptionType.INVALID_PARAMS, `The values for region, accessKeyId and secretAccessKey path must be provided [${this.name}]!`);
+            throw constructError(`The values for region, accessKeyId and secretAccessKey path must be provided [${this.name}]!`, StorageExceptionType.INVALID_PARAMS);
         }
     }
 
@@ -191,7 +192,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
             return this.makeResponse(bucket, response);
         } catch (ex) {
             const message = ex.message || `The bucket ${name} cannot be accessed!`;
-            const error = new StorageException(StorageExceptionType.NATIVE_ERROR, message, ex);
+            const error = constructError(message, StorageExceptionType.NATIVE_ERROR, ex);
             this.emit(StorageEventType.BUCKET_ADD_ERROR, error);
             throw error;
         }
@@ -200,7 +201,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
         await this.makeReady();
         const name = typeof (b) === 'string' ? b : b.name;
         if (!this._buckets.has(name)) {
-            throw new StorageException(StorageExceptionType.NOT_FOUND, `Bucket ${name} not found in this adapter!`, { name: name });
+            throw constructError(`Bucket ${name} not found in this adapter!`, StorageExceptionType.NOT_FOUND, { name: name });
         }
 
         try {
@@ -214,7 +215,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
             this.emit(StorageEventType.BUCKET_DESTROYED, bucket);
             return this.makeResponse(true, response);
         } catch (ex) {
-            const error = new StorageException(StorageExceptionType.NATIVE_ERROR, ex.message, ex);
+            const error = constructError(ex.message, StorageExceptionType.NATIVE_ERROR, ex);
             this.emit(StorageEventType.BUCKET_DESTROY_ERROR, error);
             throw error;
         }
@@ -245,7 +246,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
         }
     }
 
-    public async getPublicUrl(bucket: IBucket, fileName: string | IFile, options?: any): Promise<string> {
+    public async getPublicUrl(bucket: IBucket, fileName: string | IStorageFile, options?: any): Promise<string> {
         if (this.shouldUseNativeUrlGenerator(bucket)) {
             return `https://${bucket.config.bucketName}.s3.amazonaws.com/${this.resolveBucketPath(bucket, fileName)}`;
         } else {
@@ -253,7 +254,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
         }
     }
 
-    public async getSignedUrl(bucket: IBucket, fileName: string | IFile, options?: SignedUrlOptions): Promise<string> {
+    public async getSignedUrl(bucket: IBucket, fileName: string | IStorageFile, options?: SignedUrlOptions): Promise<string> {
         options = options || {};
         options.expiration = options.expiration || bucket.config.defaultSignedUrlExpiration || this.config.defaultSignedUrlExpiration || this.storage.config.defaultSignedUrlExpiration;
         if (this.shouldUseNativeUrlGenerator(bucket)) {
@@ -269,13 +270,11 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
     }
 
 
-    public async deleteFile(bucket: IBucket, path: string | IFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, S3NativeResponse>> {
+    public async deleteFile(bucket: IBucket, path: string | IStorageFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, S3NativeResponse>> {
         await this.makeReady();
-        if (!bucket.canRead()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot read on bucket ${bucket.name}!`);
-        }
         try {
             path = this.resolveBucketPath(bucket, path);
+            this.isFileOrTrow(path, 'path');
             const result = await this.client.deleteObject({
                 Bucket: bucket.config.bucketName,
                 Key: path
@@ -292,11 +291,9 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
 
     public async deleteFiles(bucket: IBucket, path: string, pattern: Pattern = '**', options?: DeleteManyFilesOptions): Promise<StorageResponse<boolean, S3NativeResponse>> {
         await this.makeReady();
-        if (!bucket.canWrite()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
-        }
+        this.checkWritePermission(bucket);
         try {
-            path = this.resolveFileUri(bucket, path);
+            path = this.resolveBucketPath(bucket, path);
             const toDelete = await this.listFiles(bucket, path, { pattern, returning: false, recursive: true });
             if (toDelete.result.entries.length === 0) {
                 return this.makeResponse(true);
@@ -312,7 +309,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
 
             toDelete.result.entries.map(r => {
                 params.Delete.Objects.push({
-                    Key: this.resolveFileUri(bucket, r)
+                    Key: this.resolveFileUri(bucket, r).path
                 })
             });
 
@@ -323,11 +320,9 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
         }
     }
 
-    public async copyFile<RType extends string | IFile = IFile>(bucket: IBucket, src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, S3NativeResponse>> {
+    public async copyFile<RType extends string | IStorageFile = IStorageFile>(bucket: IBucket, src: string | IStorageFile, dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<RType, S3NativeResponse>> {
         await this.makeReady();
-        if (!bucket.canWrite()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
-        }
+        this.checkWritePermission(bucket);
         try {
             src = this.resolveBucketPath(bucket, src);
             dest = this.resolveBucketPath(bucket, dest);
@@ -347,11 +342,9 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
         }
     }
 
-    public async fileExists<RType extends boolean | IFile = any>(bucket: IBucket, path: string | IFile, returning?: boolean): Promise<StorageResponse<RType, S3NativeResponse>> {
+    public async fileExists<RType extends boolean | IStorageFile = any>(bucket: IBucket, path: string | IStorageFile, returning?: boolean): Promise<StorageResponse<RType, S3NativeResponse>> {
         await this.makeReady();
-        if (!bucket.canRead()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot read on bucket ${bucket.name}!`);
-        }
+        this.checkReadPermission(bucket);
         try {
             path = this.resolveBucketPath(bucket, path);
             const info = await this.generateFileObject(bucket, path);
@@ -371,15 +364,13 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
         }
     }
 
-    public async listFiles<RType extends IFile[] | string[] = IFile[]>(bucket: IBucket, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, S3NativeResponse>> {
+    public async listFiles<RType extends IStorageFile[] | string[] = IStorageFile[]>(bucket: IBucket, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, S3NativeResponse>> {
 
         await this.makeReady();
-        if (!bucket.canRead()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot read on bucket ${bucket.name}!`);
-        }
+        this.checkReadPermission(bucket);
         const ret: any[] = [];
         try {
-            path = this.resolveFileUri(bucket, path);
+            path = this.resolveBucketPath(bucket, path);
             const params: S3Client.ListObjectsRequest = {
                 Bucket: bucket.config.bucketName,
                 Delimiter: (!options?.recursive) ? '/' : undefined,
@@ -427,18 +418,16 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
             this.parseException(ex);
         }
     }
-    public async putFile<RType extends string | IFile = any>(bucket: IBucket, fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, S3NativeResponse>> {
+    public async putFile<RType extends string | IStorageFile = any>(bucket: IBucket, fileName: string | IStorageFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, S3NativeResponse>> {
         await this.makeReady();
 
-        if (!bucket.canWrite()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot write on bucket ${bucket.name}!`);
-        }
+        this.checkWritePermission(bucket);
 
         if (options?.overwrite === false) {
             const exists = (await this.fileExists(bucket, fileName, false)).result;
             if (exists) {
                 const fName = typeof (fileName) === 'string' ? fileName : fileName.getAbsolutePath();
-                throw new StorageException(StorageExceptionType.DUPLICATED_ELEMENT, `The file ${fName} already exists!`);
+                throw constructError(`The file ${fName} already exists!`, StorageExceptionType.DUPLICATED_ELEMENT);
             }
         }
 
@@ -474,12 +463,9 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
             this.parseException(ex);
         }
     }
-    public async getFileStream(bucket: IBucket, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, S3NativeResponse>> {
+    public async getFileStream(bucket: IBucket, fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, S3NativeResponse>> {
         await this.makeReady();
-
-        if (!bucket.canRead()) {
-            throw new StorageException(StorageExceptionType.PERMISSION_ERROR, `Cannot read on bucket ${bucket.name}!`);
-        }
+        this.checkReadPermission(bucket);
         const params = {
             Bucket: bucket.config.bucketName,
             Key: this.resolveBucketPath(bucket, fileName),
@@ -526,7 +512,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
         }
     }
 
-    protected async generateFileObject(bucket: IBucket, path: string | IFile, meta?: IFileMeta): Promise<IFile> {
+    protected async generateFileObject(bucket: IBucket, path: string | IStorageFile, meta?: IFileMeta): Promise<IStorageFile> {
         await this.makeReady();
         try {
             let ret;
@@ -534,7 +520,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
             if (!meta) {
                 return;
             }
-            ret = new File(bucket, meta);
+            ret = new StorageFile(bucket, meta);
             ret.uri = this.storage.makeFileUri(this, bucket, path);
             if (typeof (path) === 'string') {
                 return ret;
@@ -559,10 +545,9 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
     }
 
 
-    protected resolveBucketPath(bucket: IBucket, dir?: string | IFile) {
-        dir = this.getFilenameFromFile(dir);
-        dir = this.resolveFileUri(bucket, dir);
-        return dir;
+    protected resolveBucketPath(bucket: IBucket, dir?: string | IStorageFile): string {
+        const ret = this.resolveFileUri(bucket, dir);
+        return ret.path;
     }
 
     protected normalizePath(dir?: string): string {

@@ -1,11 +1,11 @@
 import { IBucket } from '../buckets';
 import { StorageResponse, Streams, GetFileOptions, MoveFileOptions, CopyFileOptions } from '../types';
-import { IFile, IFileMeta } from './file.interface';
+import { IStorageFile, IFileMeta } from './file.interface';
 import { IncomingMessage } from 'http';
 import p from 'path';
 
 
-export class File implements IFile {
+export class StorageFile implements IStorageFile {
 
     protected contents: string | Buffer | Streams.Readable | IncomingMessage;
     public name: string;
@@ -39,17 +39,17 @@ export class File implements IFile {
         return this.bucket.getSignedUrl(this, options);
     }
 
-    public async save(): Promise<StorageResponse<File>> {
+    public async save(): Promise<StorageResponse<StorageFile>> {
         return this.bucket.putFile(this, this.contents, { returning: true });
     }
 
-    public async move(dest: string | IFile, options?: MoveFileOptions): Promise<StorageResponse<File>> {
+    public async move(dest: string | IStorageFile, options?: MoveFileOptions): Promise<StorageResponse<StorageFile>> {
         options = options || {};
         options.returning = true;
         return this.bucket.moveFile(this, dest, options);
     }
 
-    public async copy(dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<File>> {
+    public async copy(dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<StorageFile>> {
         options = options || {};
         options.returning = true;
         return this.bucket.copyFile(this, dest, options);
@@ -65,6 +65,10 @@ export class File implements IFile {
 
     public async getStream(options?: GetFileOptions): Promise<StorageResponse<Streams.Readable>> {
         return (await this.bucket.getFileStream(this, options));
+    }
+
+    public getNativePath(): string {
+        return this.bucket.getNativePath(this);
     }
 
 }

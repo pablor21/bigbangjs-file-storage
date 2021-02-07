@@ -14,7 +14,7 @@ import {
     DeleteFileOptions,
     GetFileOptions,
     IBucket,
-    IFile,
+    IStorageFile,
     ListFilesOptions,
     ListResult,
     StorageResponse,
@@ -100,40 +100,40 @@ export class GCSProvider extends AbstractProvider<GCSProviderConfig, FileSystemB
     public listUnregisteredBuckets(creationOptions?: BucketConfigOptions): Promise<StorageResponse<FileSystemBucketConfig[], FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
-    public deleteFile(bucket: IBucket<any, any>, path: string | IFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, FileSystemNativeResponse>> {
+    public deleteFile(bucket: IBucket<any, any>, path: string | IStorageFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
     public deleteFiles(bucket: IBucket<any, any>, path: string, pattern: Pattern, options?: DeleteManyFilesOptions): Promise<StorageResponse<boolean, FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
-    public fileExists<RType extends boolean | IFile = any>(bucket: IBucket<any, any>, path: string | IFile, returning?: boolean): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
+    public fileExists<RType extends boolean | IStorageFile = any>(bucket: IBucket<any, any>, path: string | IStorageFile, returning?: boolean): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
-    public listFiles<RType extends IFile[] | string[] = IFile[]>(bucket: IBucket<any, any>, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, FileSystemNativeResponse>> {
+    public listFiles<RType extends IStorageFile[] | string[] = IStorageFile[]>(bucket: IBucket<any, any>, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
-    public putFile<RType extends string | IFile = any>(bucket: IBucket<any, any>, fileName: string | IFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
+    public putFile<RType extends string | IStorageFile = any>(bucket: IBucket<any, any>, fileName: string | IStorageFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
-    public getFileStream(bucket: IBucket<any, any>, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, FileSystemNativeResponse>> {
+    public getFileStream(bucket: IBucket<any, any>, fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
-    public getFileContents(bucket: IBucket<any, any>, fileName: string | IFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, FileSystemNativeResponse>> {
+    public getFileContents(bucket: IBucket<any, any>, fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
-    public copyFile<RType extends string | IFile = IFile>(bucket: IBucket<any, any>, src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
+    public copyFile<RType extends string | IStorageFile = IStorageFile>(bucket: IBucket<any, any>, src: string | IStorageFile, dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
-    public moveFile<RType extends string | IFile = IFile>(bucket: IBucket<any, any>, src: string | IFile, dest: string | IFile, options?: CopyFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
+    public moveFile<RType extends string | IStorageFile = IStorageFile>(bucket: IBucket<any, any>, src: string | IStorageFile, dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
-    protected generateFileObject(bucket: IBucket<any, any>, path: string, options?: any): Promise<IFile> {
+    protected generateFileObject(bucket: IBucket<any, any>, path: string, options?: any): Promise<IStorageFile> {
         throw new Error('Method not implemented.');
     }
-    public copyFiles<RType extends string[] | IFile[] = IFile[]>(bucket: IBucket<any, any>, src: string, dest: string, pattern: Pattern, options?: CopyManyFilesOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
+    public copyFiles<RType extends string[] | IStorageFile[] = IStorageFile[]>(bucket: IBucket<any, any>, src: string, dest: string, pattern: Pattern, options?: CopyManyFilesOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
-    public moveFiles<RType extends string[] | IFile[] = IFile[]>(bucket: IBucket<any, any>, src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
+    public moveFiles<RType extends string[] | IStorageFile[] = IStorageFile[]>(bucket: IBucket<any, any>, src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, FileSystemNativeResponse>> {
         throw new Error('Method not implemented.');
     }
     public removeEmptyDirectories(bucket: IBucket<any, any>, path: string): Promise<StorageResponse<boolean, FileSystemNativeResponse>> {

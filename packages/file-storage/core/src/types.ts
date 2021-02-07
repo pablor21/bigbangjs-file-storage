@@ -1,4 +1,4 @@
-import { IFile } from './files';
+import { IStorageFile } from './files';
 import { IStorageProvider } from './providers';
 import { IMatcher } from './lib';
 import { IBucket } from './buckets';
@@ -52,7 +52,7 @@ export type StorageResponse<ResponseType = any, NativeResponseType = any> = {
     nativeResponse: NativeResponseType;
 };
 
-export type ListResult<EntriesType extends IFile[] | string[]> = {
+export type ListResult<EntriesType extends IStorageFile[] | string[]> = {
     entries: EntriesType;
 };
 
