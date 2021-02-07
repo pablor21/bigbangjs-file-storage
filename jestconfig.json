@@ -33,6 +33,7 @@
         "dist/package.json",
         "<rootDir>/package.json"
       ]
-    }
+    },
+    "<rootDir>/packages/**/jestconfig.json"
   ]
 }

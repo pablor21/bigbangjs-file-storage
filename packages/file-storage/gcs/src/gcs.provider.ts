@@ -3,7 +3,6 @@ import {
     AbstractProvider,
     IStorageProvider,
     FileStorage,
-    StorageException,
     ProviderConfigOptions,
     BucketConfigOptions,
     StorageExceptionType,
@@ -21,7 +20,8 @@ import {
     CopyManyFilesOptions,
     MoveManyFilesOptions,
     Pattern,
-    DeleteManyFilesOptions
+    DeleteManyFilesOptions,
+    constructError
 } from "@bigbangjs/file-storage";
 
 export type GCSProviderConfig = {
@@ -52,7 +52,7 @@ export class GCSProvider extends AbstractProvider<GCSProviderConfig, FileSystemB
 
     protected validateOptions() {
         if (stringNullOrEmpty(this.config.root)) {
-            throw new StorageException(StorageExceptionType.INVALID_PARAMS, `The root path must be provided [${this.name}]!`);
+            throw constructError(`The root path must be provided [${this.name}]!`, StorageExceptionType.INVALID_PARAMS);
         }
     }
 
