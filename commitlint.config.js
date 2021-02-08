@@ -8,6 +8,7 @@ module.exports = {
           // workspace packages
           'core',
           'filesystem',
+          'gcs',
           's3',
           'eslint',
           '*',
