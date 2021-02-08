@@ -27,24 +27,15 @@ describe('S3 tests', () => {
             expect((await provider01.addBucket(b.name, b)).result).toBeInstanceOf(Bucket);
         }));
 
-        let bucket01 = provider01.getBucket('bucket01');
-        let bucket02 = provider01.getBucket('bucket02');
-        let bucket03 = provider01.getBucket('bucket03');
+        const bucket01 = provider01.getBucket('bucket01');
+        const bucket02 = provider01.getBucket('bucket02');
+        const bucket03 = provider01.getBucket('bucket03');
 
         // delete the buckets
         if (clearBuckets) {
-            const allBuckets = (await provider01.listBuckets()).result;
-            await Promise.all(allBuckets.map(async (b: any) => {
-                expect((await b.destroy()).result).toBeTruthy();
-            }));
-            // add the buckets
-            await Promise.all(rootConfig.buckets.map(async (b: any) => {
-                expect((await provider01.addBucket(b.name, b)).result).toBeInstanceOf(Bucket);
-            }));
-
-            bucket01 = provider01.getBucket('bucket01');
-            bucket02 = provider01.getBucket('bucket02');
-            bucket03 = provider01.getBucket('bucket03');
+            await bucket01.empty();
+            await bucket02.empty();
+            await bucket03.empty();
 
         }
 
@@ -60,9 +51,12 @@ describe('S3 tests', () => {
         // put files
         const file01 = (await bucket01.putFile('file   01.txt', 'Test 01')).result;
         expect(file01).toBe('provider01://bucket01/file-01.txt');
-        expect((await bucket01.getFile('file-01.txt')).result.getStorageUri()).toBe(file01);
-        expect((await bucket01.getFile('file-01.txt')).result.getPublicUrl()).toBeTruthy();
-        expect((await bucket01.getFile('file-01.txt')).result.getSignedUrl()).toBeTruthy();
+        let res: any = (await bucket01.getFile('file-01.txt'));
+        expect(res.result.getStorageUri()).toBe(file01);
+        res = (await bucket01.getFile('file-01.txt'));
+        expect(res.result.getPublicUrl()).toBeTruthy();
+        res = (await bucket01.getFile('file-01.txt'));
+        expect(res.result.getSignedUrl()).toBeTruthy();
 
         // check native path
         expect(bucket01.getNativePath(file01)).toBe('file-01.txt');
@@ -71,7 +65,8 @@ describe('S3 tests', () => {
         expect(f).toBeInstanceOf(StorageFile);
         const file02 = (await bucket02.putFile('file02.txt', 'Test 02', { returning: true })).result;
         expect(file02).toBeInstanceOf(StorageFile);
-        expect((await bucket02.fileExists(file02)).result).toBe(true);
+        res = (await bucket02.fileExists(file02));
+        expect(res.result).toBe(true);
 
         const p = new Promise(resolve => {
             https.get('https://kitsu.io/api/edge/anime', async response => {
@@ -79,8 +74,8 @@ describe('S3 tests', () => {
                 resolve(fileFromStream);
             });
         });
-
-        expect(await p).toBeInstanceOf(StorageFile);
+        res = await p;
+        expect(res).toBeInstanceOf(StorageFile);
 
         // copy between buckets
         const file03 = (await bucket01.copyFile('file-01.txt', 'provider01://bucket02/copy of bucket 01/', { returning: true })).result;
@@ -93,7 +88,8 @@ describe('S3 tests', () => {
         // move between buckets
         const file05 = (await bucket02.moveFile(file02, 'provider01://bucket01/subdir 01/file moved.txt', { returning: true })).result;
         expect(file05).toBeInstanceOf(StorageFile);
-        expect((await bucket02.fileExists(file02)).result).toBeFalsy();
+        res = (await bucket02.fileExists(file02));
+        expect(res.result).toBeFalsy();
 
         // list files
         let bucket01Filelist = (await bucket01.listFiles()).result;
@@ -139,17 +135,7 @@ describe('S3 tests', () => {
         expect((await bucket02.deleteFiles('/', '**/subdir-01/*.txt')).result).toBe(true);
         expect((await bucket02.listFiles('/', { recursive: true })).result.entries).toHaveLength(4);
 
-        // END COMMON TESTS
 
-
-        // delete the buckets
-        if (clearBuckets) {
-            const allBuckets = (await provider01.listBuckets()).result;
-            const destroyResult = await Promise.all(allBuckets.map((b: any) => {
-                return b.destroy();
-            }));
-            destroyResult.map(r => expect(r.result).toBeTruthy());
-        }
     })
 
 });

@@ -41,9 +41,12 @@ export interface IBucket<ConfigType extends BucketConfigOptions = any, NativeRes
   /**
    * WARNING!!!! THIS METHOD DELETES THE DIR OR CLOUD BUCKET
    * Destroy the bucket from the provider (removes the dir or delete from the cloud)
-   * @param name the name of the bucket
    */
   destroy(): Promise<StorageResponse<boolean, NativeResponseType>>;
+  /**
+   * WARNING!!!! THIS METHOD DELETES ALL THE FILES IN A BUCKET
+   */
+  empty(): Promise<StorageResponse<boolean, NativeResponseType>>;
 
   /**
    * Removes a file or files

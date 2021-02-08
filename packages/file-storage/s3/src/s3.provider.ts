@@ -210,7 +210,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
             const bucket = this._buckets.get(name)!;
             this.emit(StorageEventType.BEFORE_DESTROY_BUCKET, bucket);
             //delete all files
-            const deleteResponse = await this.deleteFiles(bucket, '', '**');
+            const deleteResponse = await this.emptyBucket(bucket);
             let response = {};
             try {
                 response = await this.client.deleteBucket({ Bucket: bucket.config.bucketName, }).promise();
@@ -334,19 +334,20 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
         await this.makeReady();
         this.checkWritePermission(bucket);
         try {
-            //parse paths
+            // parse paths
             src = this.resolveBucketPath(bucket, src, false);
             this.isFileOrTrow(src, 'src');
-            if (this.isDirectory(this.getFilenameFromFile(dest))) {
-                dest = (`${dest}/${this.extractFilenameFromPath(src)}`);
-                this.isFileOrTrow(dest, 'dest');
-            }
+
+            // resolved uri
             const destResolvedUri = this.resolveFileUri(bucket, dest, true);
             this.checkWritePermission(destResolvedUri.bucket);
-            dest = this.resolveBucketPath(destResolvedUri.bucket, destResolvedUri.path);
-            if (this.isDirectory(dest)) {
-                dest = this.normalizePath(`${dest}/${this.extractFilenameFromPath(src)}`);
+            dest = this.makeSlug(this.getFilenameFromFile(destResolvedUri.path));
+            // if the dest is a directory, join the file to the dest
+            if (this.isDirectory(this.getFilenameFromFile(dest))) {
+                dest = joinPath(dest, this.extractFilenameFromPath(src));
+                this.isFileOrTrow(dest, 'dest');
             }
+
             const params: S3Client.CopyObjectRequest = {
                 Bucket: this.getBucketName(destResolvedUri.bucket),
                 CopySource: joinPath(this.getBucketName(bucket), src),
@@ -354,11 +355,12 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
             };
             const result = await this.client.copyObject(params).promise();
             if (this.shouldReturnObject(options?.returning)) {
-                return this.makeResponse(await this.generateFileObject(destResolvedUri.bucket, destResolvedUri.path), result);
+                return this.makeResponse(await this.generateFileObject(destResolvedUri.bucket, dest), result);
             }
-            return this.makeResponse(this.getStorageUri(destResolvedUri.bucket, destResolvedUri.path), result);
+            return this.makeResponse(this.getStorageUri(destResolvedUri.bucket, dest), result);
 
         } catch (ex) {
+            console.log(ex)
             this.parseException(ex);
         }
     }

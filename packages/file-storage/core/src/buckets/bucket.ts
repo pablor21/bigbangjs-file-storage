@@ -32,6 +32,12 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
         return this.provider.destroyBucket(this);
     }
 
+
+    public async empty(): Promise<StorageResponse<boolean, NativeResponseType>> {
+        return this.provider.emptyBucket(this);
+    }
+
+
     public canRead(): boolean {
         return canRead(this.config.mode);
     }

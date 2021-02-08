@@ -353,11 +353,7 @@ export class FileStorage {
                 fName = '/' + fName;
             }
 
-            fName.split('/').map(d => {
-                if (d !== '/' && !stringNullOrEmpty(d)) {
-                    url += '/' + this.slug(d);
-                }
-            });
+            url += fName;
         }
         return url;
     }
@@ -384,7 +380,7 @@ export class FileStorage {
 
         uri = this.getFilenameFromFile(uri);
 
-        const partsRegexp = /(?<protocol>[a-zA-Z0-9]+):\/\/(?<bucket>[a-zA-Z0-9\:]+)\/?(?<folder>.+)/;
+        const partsRegexp = /(?<protocol>[a-zA-Z0-9]+):\/\/(?<bucket>[a-zA-Z0-9:]+)\/?(?<folder>.+)/;
         const parts = uri.match(partsRegexp);
         if (parts && parts.length > 0) {
             const providerName = parts.groups.protocol.replace(':', '');
@@ -516,6 +512,10 @@ export class FileStorage {
         throw constructError(ex.message, type, ex);
     }
 
+    /**
+     * Get the filename from a string or stroagefile
+     * @param file the file
+     */
     public getFilenameFromFile(file: string | IStorageFile = '') {
         if (typeof (file) !== 'string') {
             return file.getAbsolutePath();

@@ -64,6 +64,19 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         return this.makeResponse(this._buckets.list());
     }
 
+    public async emptyBucket(bucket: string | IBucket): Promise<StorageResponse<boolean, NativeResponseType>> {
+        try {
+            const name = typeof (bucket) === 'string' ? bucket : bucket.name;
+            if (!this._buckets.has(name)) {
+                return this.makeResponse(true);
+            }
+            bucket = this.getBucket(name);
+            return this.deleteFiles(bucket, '', '**');
+        } catch (err) {
+            this.parseException(err);
+        }
+    }
+
     public async getFile<Rtype extends IStorageFile = IStorageFile>(bucket: IBucket, path: string): Promise<StorageResponse<Rtype, NativeResponseType>> {
         return await this.fileExists(bucket, path, true);
     }

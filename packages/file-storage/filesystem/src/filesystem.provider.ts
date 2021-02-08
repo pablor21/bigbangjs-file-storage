@@ -137,16 +137,30 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             const bucket = this._buckets.get(name)!;
             this.emit(StorageEventType.BEFORE_DESTROY_BUCKET, bucket);
+            await this.emptyBucket(bucket);
             this._buckets.remove(name);
-            try {
-                await fs.promises.rmdir(this.resolveBucketPath(bucket));
-            } catch (ex) { }
             this.emit(StorageEventType.BUCKET_DESTROYED, bucket);
             return this.makeResponse(true);
         } catch (ex) {
             const error = constructError(ex.message, StorageExceptionType.NATIVE_ERROR, ex);
             this.emit(StorageEventType.BUCKET_DESTROY_ERROR, error);
             throw error;
+        }
+    }
+
+    public async emptyBucket(bucket: string | IBucket): Promise<StorageResponse<boolean, FileSystemNativeResponse>> {
+        try {
+            const name = typeof (bucket) === 'string' ? bucket : bucket.name;
+            if (!this._buckets.has(name)) {
+                return this.makeResponse(true);
+            }
+            bucket = this.getBucket(name);
+            try {
+                await fs.promises.rm(this.resolveBucketPath(bucket), { recursive: true });
+            } catch (ex) { }
+            return this.makeResponse(true);
+        } catch (err) {
+            this.parseException(err);
         }
     }
 
@@ -254,7 +268,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         await this.makeReady();
         this.checkWritePermission(bucket);
 
-        
+
         fileName = this.makeSlug(fileName);
         const absFilename = this.resolveBucketPath(bucket, fileName, false);
         this.isFileOrTrow(absFilename, 'fileName');

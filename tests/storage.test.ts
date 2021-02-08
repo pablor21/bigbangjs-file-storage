@@ -1,4 +1,4 @@
-import { FileStorage, LoggerType } from '../packages/file-storage/core/src';
+import { ConsoleLogger, FileStorage, LoggerType } from '../packages/file-storage/core/src';
 import { FilesystemProvider } from '../packages/file-storage/filesystem/src';
 import { S3Provider } from '../packages/file-storage/s3/src';
 import path from 'path';
@@ -30,7 +30,7 @@ describe('Storage tests', () => {
 
         // logger
         storage.log('info', 'Test info log');
-        expect(storage.getLoger()).toBe(console);
+        expect(storage.getLoger()).toBe(ConsoleLogger);
         storage.config.logger = console;
         expect(storage.getLoger()).toBe(console);
         storage.config.logger = false;

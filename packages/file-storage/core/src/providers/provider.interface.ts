@@ -49,6 +49,11 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    */
   destroyBucket(bucket: string | IBucket): Promise<StorageResponse<boolean, NativeResponseType>>;
   /**
+   * Empty a bucket
+   * @param bucket target bucket
+   */
+  emptyBucket(bucket: string | IBucket): Promise<StorageResponse<boolean, NativeResponseType>>;
+  /**
    * List the registered buckets
    */
   listBuckets(): Promise<StorageResponse<IBucket[]>>;
@@ -73,6 +78,7 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    * @param options options
    */
   deleteFiles(bucket: IBucket, path: string, pattern: Pattern, options?: DeleteManyFilesOptions): Promise<StorageResponse<boolean, NativeResponseType>>;
+
   /**
    * Checks if a file exists (is an alias of exists with filter by file)
    * @param bucket the target bucket
@@ -193,6 +199,11 @@ export interface IStorageProvider<BucketConfigType extends BucketConfigOptions =
    */
   getSignedUrl(bucket: IBucket, fileName: string | IStorageFile, options?: SignedUrlOptions): Promise<string>;
 
+  /**
+   * Gets the native path of a file
+   * @param bucket the target bucket
+   * @param fileName the filename
+   */
   getNativePath(bucket: IBucket, fileName: string | IStorageFile): string;
 
 }
