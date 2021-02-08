@@ -16,7 +16,7 @@ describe('S3 tests', () => {
         });
 
         const urlProviderConfig02: S3ProviderConfig = {
-            uri: `s3://us-east-2/?keyFile=${credentialsFile}`
+            uri: `s3://${credentialsFile}`
         };
         const provider01 = (await storage.addProvider('provider01', urlProviderConfig02)).result;
         expect(provider01).toBeInstanceOf(S3Provider);

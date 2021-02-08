@@ -10,10 +10,10 @@ export class Bucket<ConfigType extends BucketConfigOptions = any, NativeResponse
     public readonly name: string;
     public readonly absoluteName: string;
     public readonly config: ConfigType;
-    public readonly provider: IStorageProvider<ConfigType, NativeResponseType>;
+    public readonly provider: IStorageProvider<Bucket, ConfigType, NativeResponseType>;
     public nativeProperites: any = {};
 
-    constructor(provider: IStorageProvider<ConfigType, NativeResponseType>, name: string, absoltuteName: string, config: BucketConfigOptions | Record<string, any>) {
+    constructor(provider: IStorageProvider, name: string, absoltuteName: string, config: BucketConfigOptions | Record<string, any>) {
         this.config = config as ConfigType;
         this.name = name;
         this.absoluteName = absoltuteName;
