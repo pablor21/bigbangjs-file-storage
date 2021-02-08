@@ -28,6 +28,8 @@ import {
     castValue,
     CopyFileOptions,
     constructError,
+    joinPath,
+    ResolveUriReturn,
 } from "@bigbangjs/file-storage";
 
 export type S3ProviderConfig = {
@@ -96,7 +98,6 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
 
         return ret as S3ProviderConfig;
     }
-
 
 
     public static parseUriToOptions(uri: string): S3ProviderConfig {
@@ -209,9 +210,18 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
             const bucket = this._buckets.get(name)!;
             this.emit(StorageEventType.BEFORE_DESTROY_BUCKET, bucket);
             //delete all files
-            await this.deleteFiles(bucket, '');
-            this._buckets.remove(name);
-            const response = await this.client.deleteBucket({ Bucket: bucket.config.bucketName, }).promise();
+            const deleteResponse = await this.deleteFiles(bucket, '', '**');
+            let response = {};
+            try {
+                response = await this.client.deleteBucket({ Bucket: bucket.config.bucketName, }).promise();
+                this._buckets.remove(name);
+            } catch (ex) {
+                // if the service  response indicates that the bucket does not exist, continue
+                if (ex.code !== 'NoSuchBucket' && ex.code !== 'NotFound') {
+                    throw ex;
+                }
+            }
+
             this.emit(StorageEventType.BUCKET_DESTROYED, bucket);
             return this.makeResponse(true, response);
         } catch (ex) {
@@ -324,18 +334,29 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
         await this.makeReady();
         this.checkWritePermission(bucket);
         try {
-            src = this.resolveBucketPath(bucket, src);
-            dest = this.resolveBucketPath(bucket, dest);
+            //parse paths
+            src = this.resolveBucketPath(bucket, src, false);
+            this.isFileOrTrow(src, 'src');
+            if (this.isDirectory(this.getFilenameFromFile(dest))) {
+                dest = (`${dest}/${this.extractFilenameFromPath(src)}`);
+                this.isFileOrTrow(dest, 'dest');
+            }
+            const destResolvedUri = this.resolveFileUri(bucket, dest, true);
+            this.checkWritePermission(destResolvedUri.bucket);
+            dest = this.resolveBucketPath(destResolvedUri.bucket, destResolvedUri.path);
+            if (this.isDirectory(dest)) {
+                dest = this.normalizePath(`${dest}/${this.extractFilenameFromPath(src)}`);
+            }
             const params: S3Client.CopyObjectRequest = {
-                Bucket: bucket.config.bucketName,
-                CopySource: bucket.config.bucketName + '/' + src,
+                Bucket: this.getBucketName(destResolvedUri.bucket),
+                CopySource: joinPath(this.getBucketName(bucket), src),
                 Key: dest
             };
             const result = await this.client.copyObject(params).promise();
             if (this.shouldReturnObject(options?.returning)) {
-                return this.makeResponse(await this.generateFileObject(bucket, dest), result);
+                return this.makeResponse(await this.generateFileObject(destResolvedUri.bucket, destResolvedUri.path), result);
             }
-            return this.makeResponse(this.getStorageUri(bucket, dest), result);
+            return this.makeResponse(this.getStorageUri(destResolvedUri.bucket, destResolvedUri.path), result);
 
         } catch (ex) {
             this.parseException(ex);
@@ -374,7 +395,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
             const params: S3Client.ListObjectsRequest = {
                 Bucket: bucket.config.bucketName,
                 Delimiter: (!options?.recursive) ? '/' : undefined,
-                Prefix: path,
+                Prefix: !stringNullOrEmpty(path) ? path : undefined,
                 MaxKeys: options?.maxResults || 1000,
             }
             let response: S3Client.ListObjectsOutput;
@@ -420,20 +441,21 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
     }
     public async putFile<RType extends string | IStorageFile = any>(bucket: IBucket, fileName: string | IStorageFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, S3NativeResponse>> {
         await this.makeReady();
-
         this.checkWritePermission(bucket);
+
+        fileName = this.makeSlug(fileName);
+        const absFilename = this.resolveBucketPath(bucket, fileName, false);
+        this.isFileOrTrow(absFilename, 'fileName');
 
         if (options?.overwrite === false) {
             const exists = (await this.fileExists(bucket, fileName, false)).result;
             if (exists) {
-                const fName = typeof (fileName) === 'string' ? fileName : fileName.getAbsolutePath();
+                const fName = this.getFilenameFromFile(fileName);
                 throw constructError(`The file ${fName} already exists!`, StorageExceptionType.DUPLICATED_ELEMENT);
             }
         }
 
         try {
-
-            fileName = this.resolveBucketPath(bucket, fileName);
 
             let readStream: Streams.Readable = null;
             const params = {
@@ -505,7 +527,7 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
                     Key: path
                 }
             ).promise();
-            return this.makeFileMetaFromResponse(bucket, path, info);
+            return await this.makeFileMetaFromResponse(bucket, path, info);
 
         } catch (ex) {
             this.parseException(ex);
@@ -544,31 +566,27 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3BucketConfi
         return bucket.config.useNativeUrlGenerator === true || (bucket.config.useNativeUrlGenerator === undefined && this.config.useNativeUrlGenerator === true);
     }
 
-
-    protected resolveBucketPath(bucket: IBucket, dir?: string | IStorageFile): string {
-        const ret = this.resolveFileUri(bucket, dir);
-        return ret.path;
-    }
-
     protected normalizePath(dir?: string): string {
-        if (!dir) {
-            return '';
-        }
-
-        dir.replace(/\\/g, '/');
-        if (dir.indexOf('/') === 0) {
-            dir = dir.substring(1);
-        }
-        let result = '';
-        dir.split('/').map(d => {
-            if (d !== '/' && !stringNullOrEmpty(d)) {
-                result += '/' + this.slug(d);
+        dir = super.normalizePath(dir);
+        if (dir) {
+            if (dir.indexOf('/') === 0) {
+                return dir.substring(1);
             }
-        });
-        if (result.indexOf('/') === 0) {
-            result = result.substring(1);
         }
-        return path.normalize(result).replace(/\\/g, '/');
+        return dir;
+    }
+    public resolveFileUri(bucket: IBucket, src: string | IStorageFile, allowCrossBucket = false): ResolveUriReturn {
+        const parts = super.resolveFileUri(bucket, src, allowCrossBucket);
+        if (parts.path.indexOf('/') === 0) {
+            parts.path = parts.path.substring(1);
+        }
+        return parts;
     }
 
+    protected getBucketName(bucket: string | IBucket): string {
+        if (typeof (bucket) === 'string') {
+            bucket = this.getBucket(bucket);
+        }
+        return bucket.config.bucketName;
+    }
 }

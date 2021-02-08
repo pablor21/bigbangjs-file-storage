@@ -21,7 +21,8 @@ import {
     MoveManyFilesOptions,
     Pattern,
     DeleteManyFilesOptions,
-    constructError
+    constructError,
+    joinPath
 } from "@bigbangjs/file-storage";
 
 export type GCSProviderConfig = {
@@ -29,7 +30,7 @@ export type GCSProviderConfig = {
 } & ProviderConfigOptions;
 
 const defaultConfig: GCSProviderConfig = {
-    //root: path.join(process.cwd(), 'storage')
+    //root: joinPath(process.cwd(), 'storage')
 };
 
 export type FileSystemBucketConfig = {
@@ -79,7 +80,7 @@ export class GCSProvider extends AbstractProvider<GCSProviderConfig, FileSystemB
         }
 
         if (parsedUrl.hostname || parsedUrl.pathname) {
-            ret.root = path.resolve(path.normalize(path.join(parsedUrl.hostname, parsedUrl.pathname)));
+            ret.root = path.resolve(path.normalize(joinPath(parsedUrl.hostname, parsedUrl.pathname)));
         }
         return ret;
     }

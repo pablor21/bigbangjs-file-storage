@@ -23,7 +23,7 @@ export class Registry<K = string, T = string> {
     public removeMirror(mirror: Registry) {
         const index = this.mirrors.findIndex(o => o === mirror);
         if (index > -1) {
-            delete this.mirrors[index];
+            this.mirrors.splice(index, 1);
         }
     }
 
@@ -64,7 +64,7 @@ export class Registry<K = string, T = string> {
         if (element !== undefined && element !== null) {
             const index = this.elementsArray.findIndex(o => o === element);
             if (index > -1) {
-                delete this.elementsArray[index];
+                this.elementsArray.splice(index, 1);
             }
             this.elements.delete(key);
 

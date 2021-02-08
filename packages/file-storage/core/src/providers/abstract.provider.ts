@@ -5,11 +5,11 @@ import { BucketConfigOptions, IBucket } from '../buckets';
 import { constructError, StorageExceptionType, throwError } from '../exceptions';
 import { FileStorage } from '../filestorage';
 import { StorageEventType } from '../eventnames';
-import { objectNull, Registry, stringNullOrEmpty } from '../lib';
+import { joinPath, joinUrl, objectNull, Registry, slug, stringNullOrEmpty } from '../lib';
 import { CopyFileOptions, CopyManyFilesOptions, CreateFileOptions, DeleteFileOptions, DeleteManyFilesOptions, GetFileOptions, ListFilesOptions, ListResult, MoveFileOptions, MoveManyFilesOptions, Pattern, ResolveUriReturn, SignedUrlOptions, StorageResponse, Streams } from '../types';
 import { IStorageProvider } from './provider.interface';
 import { ProviderConfigOptions } from './types';
-import { IStorageFile } from '../files';
+import { IFileMeta, IStorageFile } from '../files';
 
 
 export abstract class AbstractProvider<ProviderConfigType extends ProviderConfigOptions, BucketConfigType extends BucketConfigOptions, NativeResponseType = any> extends EventEmitter implements IStorageProvider<BucketConfigType, NativeResponseType> {
@@ -108,12 +108,13 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
 
         try {
             const srcPath = this.resolveFileUri(bucket, src, false);
+            const destPath = this.resolveFileUri(bucket, dest, true);
             const ret: any = [];
             const toCopy = await this.listFiles(bucket, src, { pattern, returning: false, recursive: true, filter: options?.filter });
             const promises: Promise<StorageResponse<string, NativeResponseType>>[] = [];
             toCopy.result.entries.map(c => {
                 const fPath = this.resolveFileUri(bucket, c, false);
-                const destPath = `${dest}/${fPath.path.replace(srcPath.path, '')}`;
+                const destPath = joinUrl(dest, fPath.path.replace(srcPath.path, '/'));
                 promises.push(this.copyFile(bucket, c, destPath, options));
             });
             const result = await Promise.all(promises);
@@ -240,6 +241,7 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
                     received: parts.bucket.absoluteName,
                 });
             }
+            parts.path = this.normalizePath(parts.path);
             return parts;
         }
         return {
@@ -298,8 +300,9 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         return this.storage.matches(name, pattern);
     }
 
-    protected slug(fileName: string, replacement = '-'): string {
-        return this.storage.slug(fileName, replacement);
+    protected makeSlug(fileName: string | IStorageFile, replacement = '-'): string {
+        fileName = this.getFilenameFromFile(fileName);
+        return this.storage.makeSlug(fileName, replacement);
     }
 
     protected async getMime(fileName: string): Promise<string> {
@@ -346,7 +349,7 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         }
         const parts = dir.split('/');
         const final = parts.splice(0, parts.length - 1).join('/');
-        return path.join(final, '/').replace(/\\/g, '/');
+        return joinPath(final, '/');
     }
 
     protected extractFilenameFromPath(dir: string): string {
@@ -371,6 +374,10 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
 
 
     protected parseException(ex: Error, type: StorageExceptionType = StorageExceptionType.NATIVE_ERROR) {
+        if (ex.name === 'ENOENT') {
+            // eslint-disable-next-line dot-notation
+            ex['type'] = StorageExceptionType.NOT_FOUND;
+        }
         this.storage.parseException(ex, type);
     }
 

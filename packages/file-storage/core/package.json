@@ -22,8 +22,7 @@
 	},
 	"optionalDependencies": {
 		"mime": "^2.5.0",
-		"minimatch": "^3.0.4",
-		"slugify": "^1.4.6"
+		"minimatch": "^3.0.4"
 	},
 	"devDependencies": {
 		"@types/minimatch": "^3.0.3",

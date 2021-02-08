@@ -24,6 +24,7 @@ import {
     ListResult,
     MoveFileOptions,
     constructError,
+    joinPath,
 
 } from "@bigbangjs/file-storage";
 
@@ -32,7 +33,7 @@ export type FileSystemProviderConfig = {
 } & ProviderConfigOptions;
 
 const defaultConfig: FileSystemProviderConfig = {
-    root: path.join(process.cwd(), 'storage')
+    root: joinPath(process.cwd(), 'storage')
 };
 
 export type FileSystemBucketConfig = {
@@ -81,7 +82,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         }
 
         if (parsedUrl.hostname || parsedUrl.pathname) {
-            ret.root = path.resolve(path.normalize(path.join(parsedUrl.hostname, parsedUrl.pathname)));
+            ret.root = path.resolve(path.normalize(joinPath(parsedUrl.hostname, parsedUrl.pathname)));
         }
         return ret;
     }
@@ -114,7 +115,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             }, config || {});
 
             const bucket = new Bucket(this, name, alias, config);
-            await fs.promises.mkdir(path.join(this.config.root, config.root), { recursive: true });
+            await fs.promises.mkdir(joinPath(this.config.root, config.root), { recursive: true });
             this._buckets.add(name, bucket);
             this.emit(StorageEventType.BUCKET_ADDED, bucket);
             return this.makeResponse(bucket);
@@ -253,6 +254,8 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         await this.makeReady();
         this.checkWritePermission(bucket);
 
+        
+        fileName = this.makeSlug(fileName);
         const absFilename = this.resolveBucketPath(bucket, fileName, false);
         this.isFileOrTrow(absFilename, 'fileName');
 
@@ -324,26 +327,31 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         this.checkReadPermission(bucket);
 
         try {
-            //parse paths
+            // parse paths
             src = this.resolveBucketPath(bucket, src, false);
             this.isFileOrTrow(src, 'src');
-            if (this.isDirectory(this.getFilenameFromFile(dest))) {
-                dest = (`${dest}/${this.extractFilenameFromPath(src)}`);
-                this.isFileOrTrow(dest, 'dest');
-            }
+
+            // resolved uri
             const destResolvedUri = this.resolveFileUri(bucket, dest, true);
             this.checkWritePermission(destResolvedUri.bucket);
-            dest = this.resolveBucketPath(destResolvedUri.bucket, destResolvedUri.path);
-            if (this.isDirectory(dest)) {
-                dest = this.normalizePath(`${dest}/${this.extractFilenameFromPath(src)}`);
+            dest = this.makeSlug(this.getFilenameFromFile(destResolvedUri.path));
+            // if the dest is a directory, join the file to the dest
+            if (this.isDirectory(this.getFilenameFromFile(dest))) {
+                dest = joinPath(dest, this.extractFilenameFromPath(src));
+                this.isFileOrTrow(dest, 'dest');
             }
-            await this.ensureDirExists(this.extractDirectoryFromPath(dest));
 
-            await fs.promises.copyFile(src, dest);
+            // get the complete filepath of the dest
+            const completeDest = this.resolveBucketPath(destResolvedUri.bucket, dest);
+            // check or create that the directory exists
+            await this.ensureDirExists(this.extractDirectoryFromPath(completeDest));
+            // copy the file
+            await fs.promises.copyFile(src, completeDest);
+
             if (this.shouldReturnObject(options?.returning)) {
-                return this.makeResponse(await this.generateFileObject(destResolvedUri.bucket, destResolvedUri.path));
+                return this.makeResponse(await this.generateFileObject(destResolvedUri.bucket, dest));
             }
-            return this.makeResponse(this.storage.makeFileUri(this, destResolvedUri.bucket, this.convertAbsolutePathToBucketPath(destResolvedUri.bucket, dest)));
+            return this.makeResponse(this.storage.makeFileUri(this, destResolvedUri.bucket, dest));
         } catch (ex) {
             this.parseException(ex);
         }
@@ -354,22 +362,26 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         await this.makeReady();
         this.checkReadPermission(bucket);
         try {
-            //parse paths
+            // parse paths
             src = this.resolveBucketPath(bucket, src, false);
             this.isFileOrTrow(src, 'src');
-            if (this.isDirectory(this.getFilenameFromFile(dest))) {
-                dest = (`${dest}/${this.extractFilenameFromPath(src)}`);
-                this.isFileOrTrow(dest, 'dest');
-            }
+
+            // resolved uri
             const destResolvedUri = this.resolveFileUri(bucket, dest, true);
             this.checkWritePermission(destResolvedUri.bucket);
-            dest = this.resolveBucketPath(destResolvedUri.bucket, destResolvedUri.path);
+            dest = this.makeSlug(this.getFilenameFromFile(destResolvedUri.path));
+            // if the dest is a directory, join the file to the dest
+            if (this.isDirectory(this.getFilenameFromFile(dest))) {
+                dest = joinPath(dest, this.extractFilenameFromPath(src));
+                this.isFileOrTrow(dest, 'dest');
+            }
 
-            // ensure target directory exists
-            await this.ensureDirExists(this.extractDirectoryFromPath(dest));
-
-            // move file
-            await fs.promises.rename(src, dest);
+            // get the complete filepath of the dest
+            const completeDest = this.resolveBucketPath(destResolvedUri.bucket, dest);
+            // check or create that the directory exists
+            await this.ensureDirExists(this.extractDirectoryFromPath(completeDest));
+            // copy the file
+            await fs.promises.rename(src, completeDest);
 
             // cleanup empty dirs
             if (this.shouldCleanupDirectory(bucket, options?.cleanup)) {
@@ -377,9 +389,10 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             }
 
             if (this.shouldReturnObject(options?.returning)) {
-                return this.makeResponse(await this.generateFileObject(destResolvedUri.bucket, destResolvedUri.path));
+                return this.makeResponse(await this.generateFileObject(destResolvedUri.bucket, dest));
             }
-            return this.makeResponse(this.storage.makeFileUri(this, destResolvedUri.bucket, this.convertAbsolutePathToBucketPath(destResolvedUri.bucket, dest)));
+            return this.makeResponse(this.storage.makeFileUri(this, destResolvedUri.bucket, dest));
+
 
         } catch (ex) {
             this.parseException(ex);
@@ -410,7 +423,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         let fileNames = await fs.promises.readdir(dir);
         if (fileNames.length > 0) {
             const promises = fileNames.map(
-                (fileName) => this.cleanDirectories(path.join(dir, fileName)),
+                (fileName) => this.cleanDirectories(joinPath(dir, fileName)),
             );
             await Promise.all(promises);
             fileNames = await fs.promises.readdir(dir);
@@ -424,7 +437,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
     protected async generateList(dir: string, base: string, options: ListFilesOptions, type: 'DIRECTORY' | 'FILE' | 'BOTH' = 'FILE', bucket: IBucket, metaGenerator: (path: string, bucket: IBucket) => Promise<IFileMeta | IStorageFile>, all: any[] = []) {
         await this.makeReady();
 
-        const absDir = this.normalizePath(path.join(base, dir));
+        const absDir = this.normalizePath(joinPath(base, dir));
         const entries: fs.Dirent[] = await fs.promises.readdir(absDir, { withFileTypes: true });
         let result = [];
         if (type === 'DIRECTORY') {
@@ -440,7 +453,10 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             const pattern = options.pattern;
             if (options.pattern) {
                 result = result.filter(f => {
-                    const p = path.join(dir, f.name);
+                    let p = joinPath(dir, f.name);
+                    if (p.indexOf('/') === 0) {
+                        p = p.substring(1);
+                    }
                     const matches = this.fileNameMatches(p, options.pattern);
                     return matches;
                 });
@@ -456,16 +472,16 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
 
         if (this.shouldReturnObject(options?.returning)) {
             result = (await Promise.all(result.map(async r => {
-                return metaGenerator(path.join(dir, r.name), bucket);
+                return metaGenerator(joinPath(dir, r.name), bucket);
             })));
             result.map(r => all.push(r));
         } else {
             result.map(r => {
-                all.push(path.join(dir, r.name));
+                all.push(joinPath(dir, r.name));
             });
         }
         if (options?.recursive) {
-            await Promise.all(entries.filter(f => f.isDirectory()).map(async f => await this.generateList(path.join(dir, f.name), base, options, type, bucket, metaGenerator, all)));
+            await Promise.all(entries.filter(f => f.isDirectory()).map(async f => await this.generateList(joinPath(dir, f.name), base, options, type, bucket, metaGenerator, all)));
         }
         return all;
 
@@ -547,7 +563,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
      */
     protected resolveBucketPath(bucket: IBucket, dir?: string | IStorageFile, allowCrossBucket = false): string {
         const resolved = this.resolveFileUri(bucket, dir, allowCrossBucket);
-        return path.join(this.config.root, this.getBucketRootPath(resolved.bucket), this.normalizePath(resolved.path) || '/').replace(/\\/g, '/');
+        return joinPath(this.config.root, this.getBucketRootPath(resolved.bucket), this.normalizePath(resolved.path) || '/').replace(/\\/g, '/');
     }
 
     protected convertAbsolutePathToBucketPath(bucket: IBucket, dir?: string) {

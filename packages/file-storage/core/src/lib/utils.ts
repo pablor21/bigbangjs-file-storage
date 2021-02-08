@@ -1,3 +1,5 @@
+import path from 'path';
+
 /* eslint-disable @typescript-eslint/no-var-requires */
 /**
  * Converts an octal number to string notation (0o777)="0777"
@@ -80,13 +82,28 @@ export function resolveMime(fileName: string): string {
 }
 
 export function slug(input: string, replacement = '-'): string {
-    try {
-        const slugify = require('slugify');
-        return slugify(input, replacement);
-    } catch (e) {
-        // pass
+    // try {
+    //     const slugify = require('slugify');
+    //     return slugify(input, replacement);
+    // } catch (e) {
+    //     // pass
+    // }
+    // return input;
+
+    if (stringNullOrEmpty(input)) {
+        return input;
     }
-    return input;
+
+    // ref: https://gist.github.com/codeguy/6684588#gistcomment-3426313
+
+    return input.toString()
+        .normalize('NFD')                   // split an accented letter in the base letter and the acent
+        .replace(/[\u0300-\u036f]/g, '')   // remove all previously split accents
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9._ ]/g, '-')   // remove all chars not letters, numbers and spaces (to be replaced)
+        .replace(/\s+/g, replacement)
+        .replace(new RegExp(replacement + replacement, 'g'), replacement);
 }
 
 
@@ -110,4 +127,13 @@ export function castValue<T extends number | string | boolean | Record<string, u
         default:
             return new type(value);
     }
+}
+
+
+export function joinPath(...paths: string[]): string {
+    return path.join(...paths).replace(/\\/g, '/');
+}
+
+export function joinUrl(url: string, ...parts: string[]): string {
+    return url + '/' + joinPath(...parts);
 }

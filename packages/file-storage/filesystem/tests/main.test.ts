@@ -23,7 +23,7 @@ describe('Filesystem tests', () => {
 
     test('Storage operations', async () => {
         const storage = new FileStorage({
-            logger: false,
+            //logger: false,
         });
 
         // provider config
@@ -31,16 +31,14 @@ describe('Filesystem tests', () => {
             root: path.join(rootPath, 'provider01'),
             type: 'fs',
         };
-        const urlProviderConfig01 = `fs://${rootPath}/provider02&mode=0777`;
+        const urlProviderConfig01 = `fs://${rootPath}/provider02?mode=0777`;
 
         await storage.addProvider('provider01', objProviderConfig01);
         await storage.addProvider('provider02', {
             uri: urlProviderConfig01,
         });
         const provider01 = storage.getProvider('provider01');
-        const provider02 = storage.getProvider('provider02');
         expect(provider01).toBeInstanceOf(FilesystemProvider);
-        expect(provider02).toBeInstanceOf(FilesystemProvider);
 
         const bucket01 = (await provider01.addBucket('bucket01', {
             root: 'bucket01',
@@ -53,17 +51,12 @@ describe('Filesystem tests', () => {
         expect(bucket02).toBeInstanceOf(Bucket);
 
 
-        const bucket03 = (await provider02.addBucket('bucket03', {
+        const bucket03 = (await provider01.addBucket('bucket03', {
             root: 'bucket03',
         })).result;
         expect(bucket03).toBeInstanceOf(Bucket);
 
-        const bucket04 = (await provider02.addBucket('bucket04', {
-            root: 'bucket04',
-        })).result;
-        expect(bucket04).toBeInstanceOf(Bucket);
-
-        expect((await bucket04.removeEmptyDirectories()).result).toBeTruthy();
+        expect((await bucket03.removeEmptyDirectories()).result).toBeTruthy();
 
         // check can read/ can write
         expect(bucket01.canRead()).toBeTruthy();
@@ -71,14 +64,14 @@ describe('Filesystem tests', () => {
 
 
         // put files
-        const file01 = (await bucket01.putFile('file01.txt', 'Test 01')).result;
-        expect(file01).toBe('provider01://bucket01/file01.txt');
-        expect((await bucket01.getFile('file01.txt')).result.getStorageUri()).toBe(file01);
-        expect((await bucket01.getFile('file01.txt')).result.getPublicUrl()).toBeTruthy();
-        expect((await bucket01.getFile('file01.txt')).result.getSignedUrl()).toBeTruthy();
+        const file01 = (await bucket01.putFile('file   01.txt', 'Test 01')).result;
+        expect(file01).toBe('provider01://bucket01/file-01.txt');
+        expect((await bucket01.getFile('file-01.txt')).result.getStorageUri()).toBe(file01);
+        expect((await bucket01.getFile('file-01.txt')).result.getPublicUrl()).toBeTruthy();
+        expect((await bucket01.getFile('file-01.txt')).result.getSignedUrl()).toBeTruthy();
 
         // check native path
-        expect(bucket01.getNativePath(file01)).toBe(path.join(bucket01.provider.config.root, bucket01.config.root, 'file01.txt'));
+        expect(bucket01.getNativePath(file01)).toBe(path.join(bucket01.provider.config.root, bucket01.config.root, 'file-01.txt'));
 
 
         expect((await bucket01.fileExists(file01, true)).result).toBeInstanceOf(StorageFile);
@@ -96,10 +89,10 @@ describe('Filesystem tests', () => {
         expect(await p).toBeInstanceOf(StorageFile);
 
         // copy between buckets
-        const file03 = (await bucket01.copyFile('/file01.txt', 'provider01://bucket02/file_copy.txt', { returning: true })).result;
+        const file03 = (await bucket01.copyFile('file-01.txt', 'provider01://bucket02/copy of bucket 01/', { returning: true })).result;
         expect(file03).toBeInstanceOf(StorageFile);
 
-        const file04 = (await bucket01.copyFile('/file01.txt', 'provider01://bucket02/', { returning: true })).result;
+        const file04 = (await bucket01.copyFile('file-01.txt', 'provider01://bucket02/file-01-copy-from-bucket01.txt', { returning: true })).result;
         expect(file04).toBeInstanceOf(StorageFile);
         expect(file04.getNativePath()).toBe(path.join(file04.bucket.provider.config.root, file04.bucket.config.root, file04.getAbsolutePath()));
 
@@ -116,10 +109,13 @@ describe('Filesystem tests', () => {
         bucket01Filelist = (await bucket01.listFiles('', { recursive: true })).result;
         expect(bucket01Filelist.entries).toHaveLength(3);
 
-        bucket01Filelist = (await bucket01.listFiles('/subdir 01', { recursive: true })).result;
+        bucket01Filelist = (await bucket01.listFiles('subdir-01', { recursive: true })).result;
         expect(bucket01Filelist.entries).toHaveLength(1);
 
-        bucket01Filelist = (await bucket01.listFiles('/', { recursive: true, pattern: '/subdir*/**/*.txt', returning: true })).result;
+        bucket01Filelist = (await bucket01.listFiles('/', { recursive: true, pattern: 'subdir*/**/*.txt', returning: true })).result;
+        expect(bucket01Filelist.entries).toHaveLength(1);
+
+        bucket01Filelist = (await bucket01.listFiles('  ', { recursive: true, pattern: 'subdir*/**/*.txt', returning: true })).result;
         expect(bucket01Filelist.entries).toHaveLength(1);
         expect((await bucket01Filelist.entries[0].getContents()).result.toString()).toBe('Test 02');
         expect((await bucket01Filelist.entries[0].getStream()).result).toBeTruthy();
@@ -143,14 +139,14 @@ describe('Filesystem tests', () => {
             expect((await bucket02.fileExists(f)).result).toBe(true);
         }));
 
-        expect((await bucket02.deleteFile('file01.txt')).result).toBe(true);
-        expect((await bucket02.listFiles('/', { recursive: true })).result.entries).toHaveLength(4);
+        expect((await bucket02.deleteFile('file-01.txt')).result).toBe(true);
+        expect((await bucket02.listFiles('/', { recursive: true })).result.entries).toHaveLength(5);
 
         expect((await bucket02.deleteFiles('/', '**/subdir-01/*.txt')).result).toBe(true);
-        expect((await bucket02.listFiles('/', { recursive: true })).result.entries).toHaveLength(3);
+        expect((await bucket02.listFiles('/', { recursive: true })).result.entries).toHaveLength(4);
 
         // destory a bucket
-        expect((await bucket04.destroy()).result).toBeTruthy();
+        expect((await bucket03.destroy()).result).toBeTruthy();
         expect((await bucket02.remove()).result).toBeTruthy();
 
 

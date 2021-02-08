@@ -18,7 +18,7 @@ describe('Storage tests', () => {
         expect(FileStorage.getProviderType('fs')).toBe(FilesystemProvider);
 
         expect(storage.slug('test 1')).toBe('test-1');
-        expect(storage.normalizePath('test/1/3A')).toBe('/test/1/3a');
+        expect(storage.normalizePath('test/1/3A')).toBe('test/1/3a');
         expect(await storage.getMime('x.txt')).toBe('text/plain');
 
         // unregister provider

@@ -3,7 +3,7 @@ import { VALID_PROVIDER_NAMES_REGEX } from './constants';
 import { StorageEventType } from './eventnames';
 import { constructError, StorageExceptionType, throwError } from './exceptions';
 import { IStorageFile } from './files';
-import { objectNull, Registry, resolveMime, stringNullOrEmpty, DefaultMatcher, IMatcher, slug, castValue } from './lib';
+import { objectNull, Registry, resolveMime, stringNullOrEmpty, DefaultMatcher, IMatcher, slug, castValue, joinPath, ConsoleLogger } from './lib';
 import { IStorageProvider, ProviderConfigOptions, StorageProviderClassType } from './providers';
 import { AddProviderOptions, CopyFileOptions, CopyManyFilesOptions, FileStorageConfigOptions, LoggerType, MoveFileOptions, MoveManyFilesOptions, Pattern, ResolveUriReturn, SignedUrlOptions, StorageResponse } from './types';
 import path from 'path';
@@ -19,7 +19,7 @@ const defaultConfigOptions: FileStorageConfigOptions = {
     slugFn: slug,
     matcherType: DefaultMatcher,
     defaultSignedUrlExpiration: 3600,
-    logger: console,
+    logger: ConsoleLogger,
 };
 
 export class FileStorage {
@@ -206,7 +206,7 @@ export class FileStorage {
                 promises.push(async () => {
                     const f = (this.resolveFileUri(this.getFilenameFromFile(c)) as ResolveUriReturn).path;
                     const sourceStream = (await srcAbsPath.bucket.getFileStream(f)).result;
-                    const result = (await destAbsPath.bucket.putFile(this.normalizePath(path.join(destPath, f.replace(srcPath, ''))), sourceStream, options)).result;
+                    const result = (await destAbsPath.bucket.putFile(this.normalizePath(joinPath(destPath, f.replace(srcPath, ''))), sourceStream, options)).result;
                     return result;
                 });
             });
@@ -252,32 +252,34 @@ export class FileStorage {
 
     /**
      * Normalize a path
-     * @param dir 
+     * @param dir
      */
     public normalizePath(dir?: string): string {
         if (!dir) {
             return '';
         }
         dir.replace(/\\/g, '/').replace(/ +/g, ' ');
-        let result = '';
-        const parts = dir.split('/');
-        if (parts.length > 0) {
-            parts.map(d => {
-                if (d !== '/' && !stringNullOrEmpty(d)) {
-                    result += '/' + this.slug(d);
-                }
-            });
-        } else {
-            result += '/' + this.slug(dir);
-        }
-        // if (stringNullOrEmpty(result)) {
-        //     result = '/';
-        // }
+        let result = dir;
         result = path.normalize(result).replace(/\\/g, '/').toLowerCase();
         if (result === '.') {
             result = '';
         }
         return result;
+    }
+
+    public makeSlug(dir?: string, replacement = '-'): string {
+        const result: any = [];
+        const parts = dir.split('/');
+        if (parts.length > 0) {
+            parts.map(d => {
+                if (d !== '/' && !stringNullOrEmpty(d)) {
+                    result.push(this.slug(d, replacement));
+                }
+            });
+        } else {
+            return this.slug(dir, replacement);
+        }
+        return result.join('/');
     }
 
 
@@ -395,7 +397,8 @@ export class FileStorage {
             if (objectNull(bucket)) {
                 throw constructError(`Bucket not found in the provider ${providerName}`, StorageExceptionType.NOT_FOUND);
             }
-            const path = decodeURI(parts.groups.folder);
+            const folder = parts.groups.folder;
+            const path = stringNullOrEmpty(folder) ? '' : decodeURI(folder);
             return {
                 provider,
                 bucket,
@@ -423,7 +426,7 @@ export class FileStorage {
      */
     public async getMime(fileName: string): Promise<string> {
         if (typeof (this.config.mimeFn) === 'function') {
-            return this.config.mimeFn(fileName);
+            return await this.config.mimeFn(fileName);
         }
         return 'unknown';
     }
