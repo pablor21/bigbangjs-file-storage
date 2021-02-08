@@ -3,7 +3,7 @@ import { VALID_PROVIDER_NAMES_REGEX } from './constants';
 import { StorageEventType } from './eventnames';
 import { constructError, StorageExceptionType, throwError } from './exceptions';
 import { IStorageFile } from './files';
-import { objectNull, Registry, resolveMime, stringNullOrEmpty, DefaultMatcher, IMatcher, slug, castValue, joinPath, ConsoleLogger } from './lib';
+import { objectNull, Registry, resolveMime, stringNullOrEmpty, DefaultMatcher, IMatcher, slug, castValue, joinPath, ConsoleLogger, joinUrl } from './lib';
 import { IStorageProvider, ProviderConfigOptions, StorageProviderClassType } from './providers';
 import { AddProviderOptions, CopyFileOptions, CopyManyFilesOptions, FileStorageConfigOptions, LoggerType, MoveFileOptions, MoveManyFilesOptions, Pattern, ResolveUriReturn, SignedUrlOptions, StorageResponse } from './types';
 import path from 'path';
@@ -173,6 +173,14 @@ export class FileStorage {
             if (!srcAbsPath || !destAbsPath) {
                 throw constructError(`Invalid source or target path`, StorageExceptionType.INVALID_PARAMS);
             }
+            this.isFileOrTrow(srcAbsPath.path, 'src');
+            dest = this.makeSlug(this.getFilenameFromFile(destAbsPath.path));
+            // if the dest is a directory, join the file to the dest
+            if (this.isDirectory(this.getFilenameFromFile(dest))) {
+                dest = joinPath(dest, this.extractFilenameFromPath(srcAbsPath.path));
+                this.isFileOrTrow(dest, 'dest');
+            }
+
             const sourceStream = (await srcAbsPath.bucket.getFileStream(src)).result;
             const result = (await destAbsPath.bucket.putFile(dest, sourceStream, options));
             return result as StorageResponse<RType, NativeResponseType>;
@@ -182,7 +190,7 @@ export class FileStorage {
     }
 
     /**
-     * Copy many files by pattern
+     * Copy many files by pattern (cross providers)
      * @param src the full uri base path
      * @param dest the destination path
      * @param pattern the pattern (glob or regex)
@@ -197,6 +205,11 @@ export class FileStorage {
             if (!srcAbsPath || !destAbsPath) {
                 throw constructError(`Invalid source or target path`, StorageExceptionType.INVALID_PARAMS);
             }
+
+            // both need to be directories
+            this.isDirectoryOrThrow(src, 'src');
+            this.isDirectoryOrThrow(dest, 'dest');
+
             const toCopy = await srcAbsPath.bucket.listFiles(srcAbsPath.path, { pattern, returning: false, recursive: true, filter: options?.filter });
             const promises: any[] = [];
             const destPath = destAbsPath.path;
@@ -206,8 +219,46 @@ export class FileStorage {
                 promises.push(async () => {
                     const f = (this.resolveFileUri(this.getFilenameFromFile(c)) as ResolveUriReturn).path;
                     const sourceStream = (await srcAbsPath.bucket.getFileStream(f)).result;
-                    const result = (await destAbsPath.bucket.putFile(this.normalizePath(joinPath(destPath, f.replace(srcPath, ''))), sourceStream, options)).result;
+                    const finalDest = this.normalizePath(joinUrl(this.makeSlug(destPath), f.replace(srcPath, '/')));
+                    const result = (await destAbsPath.bucket.putFile(finalDest, sourceStream, options)).result;
                     return result;
+                });
+            });
+            const result = await Promise.all(promises.map(async f => await f()));
+            return result as unknown as StorageResponse<RType, NativeResponseType>;
+        } catch (ex) {
+            this.parseException(ex);
+        }
+    }
+
+
+    /**
+     * Move many files by pattern (cross providers)
+     * @param src the full uri base path
+     * @param dest the destination path
+     * @param pattern the pattern (glob or regex)
+     * @param options the copy options
+     * @returns The file object if returning is true, the file uri otherwhise
+     */
+    public async moveFiles<RType extends IStorageFile[] | string[] = IStorageFile[], NativeResponseType = any>(src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
+        try {
+            const srcAbsPath = this.resolveFileUri(this.getFilenameFromFile(src));
+            const destAbsPath = this.resolveFileUri(this.getFilenameFromFile(dest));
+
+            if (!srcAbsPath || !destAbsPath) {
+                throw constructError(`Invalid source or target path`, StorageExceptionType.INVALID_PARAMS);
+            }
+
+            // both need to be directories
+            this.isDirectoryOrThrow(src, 'src');
+            this.isDirectoryOrThrow(dest, 'dest');
+
+            const toMove = await srcAbsPath.bucket.listFiles(srcAbsPath.path, { pattern, returning: false, recursive: true, filter: options?.filter });
+            const promises: any[] = [];
+
+            toMove.result.entries.map(c => {
+                promises.push(async () => {
+                    return this.moveFile(c, dest, options);
                 });
             });
             const result = await Promise.all(promises.map(async f => await f()));
@@ -234,13 +285,8 @@ export class FileStorage {
      */
     public async moveFile<RType extends IStorageFile | string = IStorageFile, NativeResponseType = any>(src: string | IStorageFile, dest: string | IStorageFile, options?: MoveFileOptions): Promise<StorageResponse<RType, NativeResponseType>> {
         try {
-            const srcAbsPath = this.resolveFileUri(this.getFilenameFromFile(src));
-            const destAbsPath = this.resolveFileUri(this.getFilenameFromFile(dest));
-            if (!srcAbsPath || !destAbsPath) {
-                throw constructError(`Invalid source or target path`, StorageExceptionType.INVALID_PARAMS);
-            }
-            const sourceStream = (await srcAbsPath.bucket.getFileStream(src)).result;
-            const result = (await destAbsPath.bucket.putFile(dest, sourceStream, options));
+            const srcAbsPath = this.resolveFileUri(this.getFilenameFromFile(src)) as ResolveUriReturn;
+            const result = await this.copyFile(src, dest, options);
             if (result.result) {
                 await (srcAbsPath.bucket.deleteFile(src, options));
             }
@@ -280,19 +326,6 @@ export class FileStorage {
             return this.slug(dir, replacement);
         }
         return result.join('/');
-    }
-
-
-    /**
-     * Move many files by pattern
-     * @param src the full uri base path
-     * @param dest the full uri destination path
-     * @param pattern the pattern (glob or regex)
-     * @param options the copy options
-     * @returns The file object if returning is true, the file uri otherwhise
-     */
-    public async moveFiles<RType extends IStorageFile[] | string[] = IStorageFile[], NativeResponseType = any>(src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
-        throw new Error('Not implemented');
     }
 
     /**
@@ -380,7 +413,7 @@ export class FileStorage {
 
         uri = this.getFilenameFromFile(uri);
 
-        const partsRegexp = /(?<protocol>[a-zA-Z0-9]+):\/\/(?<bucket>[a-zA-Z0-9:]+)\/?(?<folder>.+)/;
+        const partsRegexp = /(?<protocol>[a-zA-Z0-9]+):\/\/(?<bucket>[a-zA-Z0-9\:]+)\/?(?<folder>.+)?/;
         const parts = uri.match(partsRegexp);
         if (parts && parts.length > 0) {
             const providerName = parts.groups.protocol.replace(':', '');
@@ -521,6 +554,49 @@ export class FileStorage {
             return file.getAbsolutePath();
         }
         return file;
+    }
+
+    public isDirectory(path: string): boolean {
+        if (stringNullOrEmpty(path)) {
+            return true;
+        }
+        return path.lastIndexOf('/') === path.length - 1;
+    }
+
+    public isFile(path: string): boolean {
+        if (stringNullOrEmpty(path)) {
+            return false;
+        }
+        return !this.isDirectory(path);
+    }
+
+    public isFileOrTrow(path: string, paramName = ''): void {
+        if (!this.isFile(path)) {
+            throw constructError(`The path ${paramName} is not a valid filename!`, StorageExceptionType.INVALID_PARAMS);
+        }
+    }
+
+    public isDirectoryOrThrow(path: string, paramName = ''): void {
+        if (!this.isDirectory(path)) {
+            throw constructError(`The path ${paramName} is not a valid directory! Directories must end with '/'.`, StorageExceptionType.INVALID_PARAMS);
+        }
+    }
+
+    public extractDirectoryFromPath(dir: string): string {
+        if (this.isDirectory(dir)) {
+            return dir;
+        }
+        const parts = dir.split('/');
+        const final = parts.splice(0, parts.length - 1).join('/');
+        return joinPath(final, '/');
+    }
+
+    public extractFilenameFromPath(dir: string): string {
+        if (!this.isFile(dir)) {
+            return '';
+        }
+        const parts = dir.split('/').reverse();
+        return parts[0];
     }
 
 }

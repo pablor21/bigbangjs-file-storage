@@ -1,0 +1,20 @@
+{
+    "displayName": "Root",
+    "testMatch": [
+        "<rootDir>/tests/*.test.ts"
+    ],
+    "testTimeout": 30000,
+    "preset": "ts-jest",
+    "collectCoverage": false,
+    "collectCoverageFrom": [
+        "<rootDir>/packages/file-storage/**/src/*.ts"
+    ],
+    "moduleNameMapper": {
+        "@bigbangjs/file-storage": "<rootDir>/packages/file-storage/core/src",
+        "@bigbangjs/file-storage-(.*)": "<rootDir>/packages/file-storage/$1/src"
+    },
+    "modulePathIgnorePatterns": [
+        "dist/package.json",
+        "<rootDir>/package.json"
+    ]
+}

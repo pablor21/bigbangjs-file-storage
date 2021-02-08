@@ -127,8 +127,8 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
             const promises: Promise<StorageResponse<string, NativeResponseType>>[] = [];
             toCopy.result.entries.map(c => {
                 const fPath = this.resolveFileUri(bucket, c, false);
-                const destPath = joinUrl(dest, fPath.path.replace(srcPath.path, '/'));
-                promises.push(this.copyFile(bucket, c, destPath, options));
+                const dPath = destPath.bucket.getStorageUri(joinUrl(this.makeSlug(destPath.path), fPath.path.replace(srcPath.path, '/')));
+                promises.push(this.copyFile(bucket, c, dPath, options));
             });
             const result = await Promise.all(promises);
             result.map(r => ret.push(r.result));
@@ -147,13 +147,14 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         this.isDirectoryOrThrow(dest, 'dest');
         try {
             const srcPath = this.resolveFileUri(bucket, src, false);
+            const destPath = this.resolveFileUri(bucket, dest, true);
             const ret: any = [];
             const toMove = await this.listFiles(bucket, src, { pattern, returning: false, recursive: true, filter: options?.filter });
             const promises: Promise<StorageResponse<IStorageFile | string, NativeResponseType>>[] = [];
             toMove.result.entries.map(c => {
                 const fPath = this.resolveFileUri(bucket, c, false);
-                const destPath = `${dest}/${fPath.path.replace(srcPath.path, '')}`;
-                promises.push(this.moveFile(bucket, c, destPath, {
+                const dPath = destPath.bucket.getStorageUri(joinUrl(this.makeSlug(destPath.path), fPath.path.replace(srcPath.path, '/')));
+                promises.push(this.moveFile(bucket, c, dPath, {
                     cleanup: false, // avoid cleanup
                     returning: options?.returning,
                     overwrite: options?.overwrite,
@@ -331,46 +332,27 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
     }
 
     protected isDirectory(path: string): boolean {
-        if (stringNullOrEmpty(path)) {
-            return true;
-        }
-        return path.lastIndexOf('/') === path.length - 1;
+        return this.storage.isDirectory(path);
     }
 
     protected isFile(path: string): boolean {
-        if (stringNullOrEmpty(path)) {
-            return false;
-        }
-        return !this.isDirectory(path);
+        return this.storage.isFile(path);
     }
 
     protected isFileOrTrow(path: string, paramName = ''): void {
-        if (!this.isFile(path)) {
-            throw constructError(`The path ${paramName} is not a valid filename!`, StorageExceptionType.INVALID_PARAMS);
-        }
+        return this.storage.isFileOrTrow(path, paramName);
     }
 
     protected isDirectoryOrThrow(path: string, paramName = ''): void {
-        if (!this.isDirectory(path)) {
-            throw constructError(`The path ${paramName} is not a valid directory! Directories must end with '/'.`, StorageExceptionType.INVALID_PARAMS);
-        }
+        return this.storage.isDirectoryOrThrow(path, paramName);
     }
 
     protected extractDirectoryFromPath(dir: string): string {
-        if (this.isDirectory(dir)) {
-            return dir;
-        }
-        const parts = dir.split('/');
-        const final = parts.splice(0, parts.length - 1).join('/');
-        return joinPath(final, '/');
+        return this.storage.extractDirectoryFromPath(dir);
     }
 
     protected extractFilenameFromPath(dir: string): string {
-        if (!this.isFile(dir)) {
-            return '';
-        }
-        const parts = dir.split('/').reverse();
-        return parts[0];
+        return this.storage.extractFilenameFromPath(dir);
     }
 
     protected normalizePath(dir?: string): string {
