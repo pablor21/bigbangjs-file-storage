@@ -25,6 +25,8 @@ import {
     joinPath
 } from "@bigbangjs/file-storage";
 
+import { Storage as GSStorage } from '@google-cloud/storage';
+
 export type GCSProviderConfig = {
     root?: string;
 } & ProviderConfigOptions;
@@ -45,6 +47,8 @@ export class GCSProvider extends AbstractProvider<GCSProviderConfig, FileSystemB
     public supportsCrossBucketOperations: boolean;
 
     public readonly type: string = 'GCS';
+    protected client: GSStorage;
+
     constructor(storage: FileStorage, name: string, config: string | GCSProviderConfig = defaultConfig) {
         super(storage, name, config);
         this.supportsCrossBucketOperations = true;

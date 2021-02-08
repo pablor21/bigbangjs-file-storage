@@ -3,7 +3,6 @@
 /data
 /coverage
 /temp
-/.vscode
 /yarn-error.log
 /.coveralls.yml
 !.gitkeep
