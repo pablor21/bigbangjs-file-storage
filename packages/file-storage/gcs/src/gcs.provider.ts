@@ -10,7 +10,6 @@ import {
     CreateFileOptions,
     DeleteFileOptions,
     GetFileOptions,
-    IBucket,
     IStorageFile,
     ListFilesOptions,
     ListResult,
@@ -23,24 +22,20 @@ import {
     StorageEventType,
     Registry,
     stringNullOrEmpty,
-    castValue
+    castValue,
+    joinPath
 } from "@bigbangjs/file-storage";
-
-import { Storage as GSStorage, StorageOptions as GCSStorageOptions } from '@google-cloud/storage';
-import { GCSBucket, GCSBucketConfig } from './gcs.bucket';
-
-export type GCSProviderConfig = {
-    useNativeUrlGenerator?: boolean;
-} & ProviderConfigOptions & GCSStorageOptions;
+import path from 'path';
+import fs from 'fs';
+import { Storage as GSStorage } from '@google-cloud/storage';
+import { GCSBucket } from './gcs.bucket';
+import { GCSBucketConfig, GCSNativeResponse, GCSProviderConfig } from "./types";
 
 const defaultConfig: GCSProviderConfig = {
     useNativeUrlGenerator: true,
 };
 
 
-export type GCSNativeResponse = {
-
-}
 
 export class GCSProvider extends AbstractProvider<GCSProviderConfig, GCSBucket, GCSBucketConfig, GCSNativeResponse> implements IStorageProvider<GCSBucket, GCSBucketConfig, GCSNativeResponse>{
     public supportsCrossBucketOperations: boolean;
@@ -62,7 +57,7 @@ export class GCSProvider extends AbstractProvider<GCSProviderConfig, GCSBucket, 
     }
 
     protected parseConfig(config: string | GCSProviderConfig): GCSProviderConfig {
-        const ret = {};
+        const ret: GCSProviderConfig = {};
         if (typeof (config) === 'string') {
             Object.assign(ret, defaultConfig, GCSProvider.parseUriToOptions(config));
         } else {
@@ -71,6 +66,13 @@ export class GCSProvider extends AbstractProvider<GCSProviderConfig, GCSBucket, 
                 Object.assign(ret, GCSProvider.parseUriToOptions(config.uri));
             }
         }
+
+        if (ret.keyFilename) {
+            const keyFilePath = path.resolve(ret.keyFilename);
+            const contents = JSON.parse(fs.readFileSync(keyFilePath).toString());
+            ret.projectId = contents.project_id;
+        }
+
         return ret as GCSProviderConfig;
     }
 
@@ -99,8 +101,8 @@ export class GCSProvider extends AbstractProvider<GCSProviderConfig, GCSBucket, 
             ret.defaultSignedUrlExpiration = castValue<number>(defaultSignedUrlExpiration, 'number', undefined);
         }
 
-        if (parsedUrl.pathname) {
-            ret.keyFilename = parsedUrl.pathname;
+        if (parsedUrl.pathname || parsedUrl.hostname) {
+            ret.keyFilename = joinPath(parsedUrl.hostname, parsedUrl.pathname);
         }
 
         if (parsedUrl.username) {
@@ -138,15 +140,12 @@ export class GCSProvider extends AbstractProvider<GCSProviderConfig, GCSBucket, 
             }, config || {});
 
 
-            let response = this.client.bucket(config.bucketName);
+            const response = this.client.bucket(config.bucketName);
 
             try {
                 await response.getMetadata();
             } catch (ex) {
                 if (ex.code === 404 && config.tryCreate) {
-                    const b = await this.client.createBucket(config.bucketName, {
-
-                    });
                     return this.addBucket(name, config);
                 }
                 this.parseException(ex);

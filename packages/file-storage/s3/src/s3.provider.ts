@@ -108,10 +108,6 @@ export class S3Provider extends AbstractProvider<S3ProviderConfig, S3Bucket, S3B
             ret.secretAccessKey = parsedUrl.password;
         }
 
-        // if (parsedUrl.searchParams.has('keyFile')) {
-        //     ret.keyFile = parsedUrl.searchParams.get('keyFile');
-        // }
-
         if (parsedUrl.searchParams.has('ssl') && (!stringNullOrEmpty(parsedUrl.searchParams.get('ssl')))) {
             const ssl = parsedUrl.searchParams.get('ssl');
             ret.ssl = castValue<boolean>(ssl, 'boolean', true);

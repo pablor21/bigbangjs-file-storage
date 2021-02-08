@@ -4,7 +4,7 @@ import https from 'https';
 import fs from 'fs';
 import { GCSProvider, GCSProviderConfig } from '../src';
 
-describe('S3 tests', () => {
+describe('GCS tests', () => {
     const credentialsFile = path.join(__dirname, 'credentials.json');
     const rootConfig = JSON.parse(fs.readFileSync(credentialsFile).toString());
     const clearBuckets = true;
@@ -18,7 +18,6 @@ describe('S3 tests', () => {
 
         const urlProviderConfig02: GCSProviderConfig = {
             uri: `gcs://${credentialsFile}`,
-            projectId: rootConfig.project_id,
         };
 
 

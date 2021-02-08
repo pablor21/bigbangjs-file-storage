@@ -1,11 +1,7 @@
-import { Bucket, BucketConfigOptions, IStorageProvider } from "@bigbangjs/file-storage";
+import { Bucket } from "@bigbangjs/file-storage";
 import { Bucket as GCSNativeBucket } from '@google-cloud/storage';
 import { GCSProvider } from "./gcs.provider";
-
-export type GCSBucketConfig = {
-    bucketName: string;
-    tryCreate?: boolean;
-} & BucketConfigOptions;
+import { GCSBucketConfig } from "./types";
 
 export class GCSBucket extends Bucket {
     public readonly gcsBucket: GCSNativeBucket;
