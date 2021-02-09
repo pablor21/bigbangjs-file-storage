@@ -350,7 +350,10 @@ export class GCSProvider extends AbstractProvider<GCSProviderConfig, GCSBucket, 
         this.checkReadPermission(bucket);
         fileName = this.resolveBucketPath(bucket, fileName);
         const file = bucket.gcsBucket.file(fileName);
-        const stream = file.createReadStream();
+        const stream = file.createReadStream({
+            start: options?.start,
+            end: options?.end
+        });
         return this.makeResponse(stream);
     }
 
