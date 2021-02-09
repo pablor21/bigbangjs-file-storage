@@ -1,6 +1,6 @@
 {
 	"name": "@bigbangjs/file-storage",
-	"version": "1.0.0-alpha.0",
+	"version": "1.0.0",
 	"description": "File storage abstraction for nodejs",
 	"main": "dist/index.js",
 	"author": {
@@ -25,15 +25,15 @@
 	},
 	"devDependencies": {
 		"@types/minimatch": "^3.0.3",
-		"mime": "^2.5.0",
-		"minimatch": "^3.0.4",
-		"slugify": "^1.4.6",
-		"ts-jest": "^26.5.1",
 		"eslint-config-prettier": "^7.2.0",
 		"eslint-plugin-prettier": "^3.3.1",
 		"husky": "^4.3.8",
 		"jest": "^26.6.3",
+		"mime": "^2.5.0",
+		"minimatch": "^3.0.4",
 		"prettier": "^2.2.1",
+		"slugify": "^1.4.6",
+		"ts-jest": "^26.5.1",
 		"ts-loader": "^8.0.14",
 		"typescript": "^4.1.3"
 	},
