@@ -1,6 +1,6 @@
 {
 	"name": "@bigbangjs/file-storage-s3",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Amazon S3 adapter for @bigbangjs/file-storage",
 	"main": "dist/index.js",
 	"files": [
@@ -29,7 +29,7 @@
 		"compile": "tsc -p tsconfig.build.json"
 	},
 	"devDependencies": {
-		"@bigbangjs/file-storage": "^1.0.0",
+		"@bigbangjs/file-storage": "^1.0.1",
 		"eslint-config-prettier": "^7.2.0",
 		"eslint-plugin-prettier": "^3.3.1",
 		"jest": "^26.6.3",
