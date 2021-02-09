@@ -1,6 +1,6 @@
 {
 	"name": "@bigbangjs/file-storage",
-	"version": "0.0.1",
+	"version": "1.0.0-alpha.0",
 	"description": "File storage abstraction for nodejs",
 	"main": "dist/index.js",
 	"author": {
@@ -28,8 +28,6 @@
 		"mime": "^2.5.0",
 		"minimatch": "^3.0.4",
 		"slugify": "^1.4.6"
-	},
-	"dependencies": {
 	},
 	"publishConfig": {
 		"access": "public"

@@ -1,6 +1,6 @@
 {
 	"name": "@bigbangjs/file-storage-filesystem",
-	"version": "0.0.1",
+	"version": "1.0.0-alpha.0",
 	"description": "Local filesystem adapter for @bigbangjs/file-storage",
 	"main": "dist/index.js",
 	"files": [
@@ -21,13 +21,12 @@
 		"compile": "tsc -p tsconfig.build.json"
 	},
 	"devDependencies": {
-		"@bigbangjs/file-storage": "^0.0.1",
+		"@bigbangjs/file-storage": "^1.0.0-alpha.0",
 		"@types/fs-extra": "^9.0.6"
 	},
 	"peerDependencies": {
 		"@bigbangjs/file-storage": "^0.0.1"
 	},
-	"dependencies": {},
 	"publishConfig": {
 		"access": "public"
 	}
