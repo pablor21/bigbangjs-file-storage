@@ -9,7 +9,6 @@
 		"url": "https://pjramirez.com"
 	},
 	"license": "MIT",
-	"private": true,
 	"files": [
 		"index.js",
 		"index.d.ts",
