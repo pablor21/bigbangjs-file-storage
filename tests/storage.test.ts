@@ -1,6 +1,6 @@
-import { Bucket, ConsoleLogger, FileStorage, LoggerType } from '../packages/file-storage/core/src';
-import { FilesystemProvider, FileSystemProviderConfig } from '../packages/file-storage/filesystem/src';
-import { S3Provider, S3ProviderConfig } from '../packages/file-storage/s3/src';
+import { Bucket, ConsoleLogger, FileStorage, LoggerType } from '../packages/core/src';
+import { FilesystemProvider, FileSystemProviderConfig } from '../packages/filesystem/src';
+import { S3Provider, S3ProviderConfig } from '../packages/s3/src';
 import path from 'path';
 import fs from 'fs';
 
@@ -9,7 +9,7 @@ FileStorage.registerProviderType('fs', FilesystemProvider);
 
 
 const rootPath = path.resolve(__dirname, '../private/tests/');
-const s3CredentialsFile = path.join(__dirname, '../packages/file-storage/s3/tests/credentials.json');
+const s3CredentialsFile = path.join(__dirname, '../packages/s3/tests/credentials.json');
 const s3RootConfig = JSON.parse(fs.readFileSync(s3CredentialsFile).toString());
 
 describe('Storage tests', () => {
@@ -30,7 +30,7 @@ describe('Storage tests', () => {
     test('Core tests', async () => {
         const storage = new FileStorage({
             logger: true,
-        
+            bucketAliasStrategy: "PROVIDER:NAME"
         });
 
         expect(storage).toBeInstanceOf(FileStorage);
@@ -60,40 +60,43 @@ describe('Storage tests', () => {
         expect(storage.getLoger()).toBe(undefined);
 
         // add invalid provider name
-        expect(await (async () => await storage.addProvider('#invalid', {}))).rejects.toThrow(Error);
+        expect(await (async () => await storage.addProvider({
+            name: '#invalid'
+        }))).rejects.toThrow(Error);
 
+        // add a provider of type fs using url
+        const provider01 = (await storage.addProvider(`fs://${rootPath}/provider_01?name=provider01`)).result;
+        expect(provider01).toBeInstanceOf(FilesystemProvider);
+        expect(provider01.name).toBe('provider01');
+
+        // add provider of type fs using config object
+        const provider02 = (await storage.addProvider({
+            name: 'provider02',
+            type: 'fs',
+            root: `${rootPath}/provider_02`,
+            mode: '0777',
+            autoCleanup: true,
+        })).result;
+        expect(provider02).toBeInstanceOf(FilesystemProvider);
+        expect(provider01.name).toBe('provider01');
 
         // CROSS PROVIDERS TEST
         // provider config
-        const objProviderConfig01: FileSystemProviderConfig = {
-            root: path.join(rootPath, 'provider01'),
-            type: 'fs',
-        };
-        const urlProviderConfig01 = `fs://${rootPath}/provider02?mode=0777`;
-
-        await storage.addProvider('provider01', objProviderConfig01);
-        await storage.addProvider('provider02', {
-            uri: urlProviderConfig01,
-        });
-        const provider01 = storage.getProvider('provider01');
-        expect(provider01).toBeInstanceOf(FilesystemProvider);
-
-        const bucket01 = (await provider01.addBucket('bucket01', {
+        const bucket01 = (await provider01.addBucket({
             root: 'bucket01',
+            name: 'bucket01'
         })).result;
         expect(bucket01).toBeInstanceOf(Bucket);
 
-        const bucket02 = (await provider01.addBucket('bucket02', {
-            root: 'bucket02',
-        })).result;
+        const bucket02 = (await provider01.addBucket('provider01://bucket02?name=bucket02')).result;
         expect(bucket02).toBeInstanceOf(Bucket);
 
         const urlProviderConfig02: S3ProviderConfig = {
-            uri: `s3://${s3CredentialsFile}`
+            uri: `s3://${s3CredentialsFile}`,
+            name: 'provider03',
         };
-        const provider02 = (await storage.addProvider('provider03', urlProviderConfig02)).result;
-        expect((await provider02.addBucket("bucket03",s3RootConfig.buckets[2])).result).toBeInstanceOf(Bucket)
-        const bucket03 = provider02.getBucket("bucket03");
+        const provider03 = (await storage.addProvider(urlProviderConfig02)).result;
+        const bucket03 = provider03.getBucket("bucket03");
         expect(bucket03).toBeInstanceOf(Bucket);
 
         const file01 = (await bucket01.putFile('test01.txt', 'Hello world from Earth!')).result;

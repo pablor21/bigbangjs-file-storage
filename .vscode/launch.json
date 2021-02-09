@@ -11,7 +11,7 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/packages/file-storage/filesystem/src/filesystem.adapter.ts",
+            "program": "${workspaceFolder}/packages/filesystem/src/filesystem.adapter.ts",
             "outFiles": [
                 "${workspaceFolder}/**/*.js"
             ]
@@ -28,7 +28,7 @@
             "name": "Debug Jest Tests S3",
             "type": "node",
             "request": "launch",
-            "runtimeArgs": ["--inspect-brk", "${workspaceRoot}/node_modules/.bin/jest", "--config", "jestconfig.json", "--runInBand", "--projects", "packages/file-storage/s3/jestconfig.json"],
+            "runtimeArgs": ["--inspect-brk", "${workspaceRoot}/node_modules/.bin/jest", "--config", "jestconfig.json", "--runInBand", "--projects", "packages/s3/jestconfig.json"],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen"
         },
@@ -36,7 +36,7 @@
             "name": "Debug Jest Tests Filesystem",
             "type": "node",
             "request": "launch",
-            "runtimeArgs": ["--inspect-brk", "${workspaceRoot}/node_modules/.bin/jest", "--config", "jestconfig.json", "--runInBand", "--projects", "packages/file-storage/filesystem/jestconfig.json"],
+            "runtimeArgs": ["--inspect-brk", "${workspaceRoot}/node_modules/.bin/jest", "--config", "jestconfig.json", "--runInBand", "--projects", "packages/filesystem/jestconfig.json"],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen"
         },
@@ -44,7 +44,7 @@
             "name": "Debug Jest Tests GCS",
             "type": "node",
             "request": "launch",
-            "runtimeArgs": ["--inspect-brk", "${workspaceRoot}/node_modules/.bin/jest", "--config", "jestconfig.json", "--runInBand", "--projects", "packages/file-storage/gcs/jestconfig.json"],
+            "runtimeArgs": ["--inspect-brk", "${workspaceRoot}/node_modules/.bin/jest", "--config", "jestconfig.json", "--runInBand", "--projects", "packages/gcs/jestconfig.json"],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen"
         },

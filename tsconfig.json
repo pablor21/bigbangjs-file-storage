@@ -3,16 +3,16 @@
     "compilerOptions": {
         "paths": {
             "@bigbangjs/file-storage": [
-                "./packages/file-storage/core/src"
+                "./packages/core/src"
             ],
             "@bigbangjs/file-storage-filesystem": [
-                "./packages/file-storage/filesystem/src"
+                "./packages/filesystem/src"
             ],
             "@bigbangjs/file-storage-s3": [
-                "./packages/file-storage/s3/src"
+                "./packages/s3/src"
             ],
             "@bigbangjs/file-storage-gcs": [
-                "./packages/file-storage/gcs/src"
+                "./packages/gcs/src"
             ]
         }
     },

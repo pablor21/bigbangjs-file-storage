@@ -17,9 +17,9 @@ $ yarn add @bigbangjs/file-storage
 2. **Install the client provider that you want to use**
 
 Currently there are three providers that you can use:
-- [`@bigbangjs/file-storage-filesystem`](packages/file-storage/filesystem) Manager for the local filesystem
-- [`@bigbangjs/file-storage-s3`](packages/file-storage/s3) Amazon s3 storage
-- [`@bigbangjs/file-storage-gcs`](packages/file-storage/gcs) Google cloud storage
+- [`@bigbangjs/file-storage-filesystem`](packages/filesystem) Manager for the local filesystem
+- [`@bigbangjs/file-storage-s3`](packages/s3) Amazon s3 storage
+- [`@bigbangjs/file-storage-gcs`](packages/gcs) Google cloud storage
 
 ***Please read the documentation of each provider for the documentation about the configuration options***
 
@@ -49,12 +49,15 @@ const storage = new FileStorage({
 });
 
 // add a provider
-const myProvider=(await storage.addProvider('myprovider', {
+const myProvider=(await storage.addProvider({
     uri: 'fs://<pathToRoot>',
+    name: 'myprovider'
 })).result;
 
-// add a bucket
-const myBucket=(await myProvider.addBucket('bucket01', { root: 'bucket01' }));
+// add a buckets (you can add the buckets to the provider instance or the storage root instance)
+const myBucket=(await myProvider.addBucket({name: 'bucket01', root: 'bucket01' }));
+const myBucket2=(await myProvider.addBucket('myprovider://bucket02?name=bucket02'));
+const myBucket3=(await storage.addBucket('myprovider://bucket02?name=bucket02'));
 
 // the bucket is ready to use, for example, create a file
 const fileUri= (await myBucket.putFile('directory/test.txt', 'Hello world!')).result;
@@ -71,7 +74,7 @@ All async storage operations are wrapped in an object of type StorageResponse th
 ---
 
 > ❗ **Important**:
-This libary uses a convention (AWS S3 like) to distingish between files and directories: **a directory name must end with "/" or be an empty string, everything that is not a directory, is a file.** 
+This libary uses a convention to distingish between files and directories: **a directory name must end with "/" or be an empty string, everything that is not a directory, is a file.** 
 This behavior has an important impact when you copy/move files, if you copy/move a file called file01.txt to a location endend in "/", ex: destination/, then the file will be copied/moved to destination/file01.txt, if the destination doesn't end with "/" then the file will be copied/moved to "destination" (a file without extension)
 ---
 
@@ -270,7 +273,77 @@ The `Pattern` parameter on `listFiles`, `moveFiles`, `copyFiles`, `deleteFiles` 
 npm install minimatch
 ```
 
-You can set your own matcher class setting the `matcherType` configuration parameter, the matcher must be a class that implements the [`IMatcher`](./packages/file-storage/core/src/lib/matcher.ts). The storage will instantiate the matcher class as needed.
+You can set your own matcher class setting the `matcherType` configuration parameter, the matcher must be a class that implements the [`IMatcher`](./packages/core/src/lib/matcher.ts). The storage will instantiate the matcher class as needed.
+
+---
+## 💥 Configuration options for the FileStorage
+
+You can pass a [`FileStorageConfigOptions`]()
+
+The configuration has the following properties:
+```typescript
+{
+     /**
+     * The default permissions mode for the buckets
+     */
+    defaultBucketMode: string;
+    /**
+     * Naming strategy for the buckets in the global registry
+     */
+    bucketAliasStrategy: 'NAME' | 'PROVIDER:NAME' | ((name: string, provider: IStorageProvider) => string);
+    /**
+     * Auto init providers? This will make to call init() on the provider when it's added to the storage
+     */
+    autoInitProviders: boolean;
+    /**
+     * Default bucket name
+     */
+    defaultBucketName?: string;
+    /**
+     * Return instances of file/directory by default? (can be overriden by the get/list/create methods config)
+     */
+    returningByDefault?: boolean;
+
+    /**
+     * Function to obtain a mime type based on the fileName
+     */
+    mimeFn?: (fileName: string) => string | Promise<string>;
+
+    /**
+     * Slug function
+     */
+    slugFn?: (input: string, replacement?: string) => string;
+
+    /**
+     * File url generator
+     */
+    urlGenerator?: (uri: string, options?: any) => Promise<string>;
+
+    /**
+     * Signed url generator
+     */
+    signedUrlGenerator?: (uri: string, options?: SignedUrlOptions) => Promise<string>;
+
+    /**
+     * signed url default expiration time (in seconds)
+     */
+    defaultSignedUrlExpiration: number;
+
+    /**
+     * Function to obtain a regex based on glob pattern
+     */
+    matcherType?: new () => IMatcher;
+
+    /**
+     * Logger class
+     */
+    logger?: LoggerType | boolean;
+    /**
+     * Auto remove empty directories
+     */
+    autoCleanup?: boolean;
+}
+```
 
 ---
 ## 💥 Cloning / Testing
@@ -282,6 +355,12 @@ Running the tests (on the root path or inside a provider folder)
 ```
 yarn test
 ```
-
+---
 ## 💥 ToDo
-[ ] M
+- [ ] Better docs!
+- [ ] Drink coffe after finish!
+
+---
+MIT License
+
+Copyright (c) 2020 Pablo Ramírez <dev@pjramirez.com>
