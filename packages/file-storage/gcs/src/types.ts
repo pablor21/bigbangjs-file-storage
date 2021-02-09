@@ -9,6 +9,7 @@ export type GCSNativeResponse = {
 export type GCSBucketConfig = {
     bucketName: string;
     tryCreate?: boolean;
+    useNativeUrlGenerator?: boolean;
 } & BucketConfigOptions;
 
 

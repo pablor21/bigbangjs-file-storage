@@ -121,7 +121,7 @@ describe('Filesystem tests', () => {
         expect((await bucket01Filelist.entries[0].getStream()).result).toBeTruthy();
 
         const bucket02Filelist = (await bucket02.listFiles()).result;
-        expect(bucket02Filelist.entries).toHaveLength(2);
+        expect(bucket02Filelist.entries).toHaveLength(1);
 
         // copy multiple files
         const multipleCopy = (await bucket01.copyFiles('/', 'provider01://bucket02/multiplecopy/', '**')).result;

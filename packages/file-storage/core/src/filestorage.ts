@@ -91,7 +91,7 @@ export class FileStorage {
      * @param config the config options
      * @param options the creation options
      */
-    public async addProvider(name: string, config: ProviderConfigOptions, options: AddProviderOptions = { replace: false }): Promise<StorageResponse<IStorageProvider>> {
+    public async addProvider<RType extends IStorageProvider = IStorageProvider>(name: string, config: ProviderConfigOptions, options: AddProviderOptions = { replace: false }): Promise<StorageResponse<RType>> {
         if (objectNull(config) || !name.match(VALID_PROVIDER_NAMES_REGEX)) {
             throw constructError(`Invalid configuration options!`, StorageExceptionType.INVALID_PARAMS, { options: config });
         }
@@ -122,13 +122,13 @@ export class FileStorage {
         if (config.autoInit === false && this.config.autoInitProviders === false) {
             this.addListenersToProvider(provider);
             this.providers.add(name!, provider);
-            return { result: provider, nativeResponse: {} };
+            return { result: provider as RType, nativeResponse: {} };
         }
         try {
             const response = await provider.init();
             this.addListenersToProvider(provider);
             this.providers.add(name!, provider);
-            return { result: provider, nativeResponse: response };
+            return { result: provider as RType, nativeResponse: response };
         } catch (ex) {
             throwError(ex.message, StorageExceptionType.UNKNOWN_ERROR, ex);
         }
@@ -139,8 +139,8 @@ export class FileStorage {
      * Obtains an provider
      * @param name the name of the provider
      */
-    public getProvider(name: string): IStorageProvider | undefined {
-        return this.providers.get(name);
+    public getProvider<RType extends IStorageProvider = IStorageProvider>(name: string): RType | undefined {
+        return this.providers.get(name) as RType;
     }
 
     /**
@@ -347,14 +347,14 @@ export class FileStorage {
      * Gets a registered bucket
      * @param name the bucket name (or default if the name is not provider)
      */
-    public getBucket(name?: string): IBucket {
+    public getBucket<RType extends IBucket = IBucket>(name?: string): RType {
         if (!name) {
             name = this.config.defaultBucketName;
         }
         if (stringNullOrEmpty(name)) {
             throwError(`You must provide the bucket name or add the default bucket name in the config options!`, StorageExceptionType.INVALID_PARAMS);
         }
-        return this.buckets.get(name);
+        return this.buckets.get(name) as RType;
     }
 
     /**

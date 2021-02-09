@@ -5,7 +5,7 @@ import { Bucket, BucketConfigOptions, IBucket } from '../buckets';
 import { constructError, StorageExceptionType, throwError } from '../exceptions';
 import { FileStorage } from '../filestorage';
 import { StorageEventType } from '../eventnames';
-import { joinPath, joinUrl, objectNull, Registry, slug, stringNullOrEmpty } from '../lib';
+import { joinPath, joinUrl, objectNull, Registry, slug, streamToBuffer, stringNullOrEmpty } from '../lib';
 import { CopyFileOptions, CopyManyFilesOptions, CreateFileOptions, DeleteFileOptions, DeleteManyFilesOptions, GetFileOptions, ListFilesOptions, ListResult, MoveFileOptions, MoveManyFilesOptions, Pattern, ResolveUriReturn, SignedUrlOptions, StorageResponse, Streams } from '../types';
 import { IStorageProvider } from './provider.interface';
 import { ProviderConfigOptions } from './types';
@@ -101,14 +101,8 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
     public async getFileContents(bucket: BucketType, fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, NativeResponseType>> {
         await this.makeReady();
         this.checkReadPermission(bucket);
-        const parts: any = [];
         const stream = (await this.getFileStream(bucket, fileName, options)).result;
-        stream.on('data', data => parts.push(data));
-        const promise = new Promise((resolve, reject) => {
-            stream.on('end', () => resolve(Buffer.concat(parts)));
-            stream.on('error', err => reject(this.parseException(err)));
-        });
-        return this.makeResponse(await promise);
+        return this.makeResponse(await streamToBuffer(stream));
     }
 
     public async copyFiles<RType extends string[] | IStorageFile[] = IStorageFile[]>(bucket: BucketType, src: string, dest: string, pattern: Pattern = '**', options?: CopyManyFilesOptions): Promise<StorageResponse<RType, NativeResponseType>> {
@@ -116,8 +110,8 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         this.checkReadPermission(bucket);
 
         // both need to be directories
-        this.isDirectoryOrThrow(src, 'src');
-        this.isDirectoryOrThrow(dest, 'dest');
+        // this.isDirectoryOrThrow(src, 'src');
+        // this.isDirectoryOrThrow(dest, 'dest');
 
         try {
             const srcPath = this.resolveFileUri(bucket, src, false);
@@ -143,8 +137,8 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
         await this.makeReady();
         this.checkReadPermission(bucket);
         // both need to be directories
-        this.isDirectoryOrThrow(src, 'src');
-        this.isDirectoryOrThrow(dest, 'dest');
+        // this.isDirectoryOrThrow(src, 'src');
+        // this.isDirectoryOrThrow(dest, 'dest');
         try {
             const srcPath = this.resolveFileUri(bucket, src, false);
             const destPath = this.resolveFileUri(bucket, dest, true);
@@ -176,7 +170,7 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
     public async deleteFiles(bucket: BucketType, path: string, pattern: Pattern = '**', options?: DeleteManyFilesOptions): Promise<StorageResponse<boolean, NativeResponseType>> {
         await this.makeReady();
         this.checkWritePermission(bucket);
-        this.isDirectoryOrThrow(path, 'path');
+        // this.isDirectoryOrThrow(path, 'path');
         try {
             const toDelete = await this.listFiles(bucket, path, { pattern, returning: false, recursive: true });
             const promises: Promise<StorageResponse<boolean, NativeResponseType>>[] = [];
@@ -366,7 +360,6 @@ export abstract class AbstractProvider<ProviderConfigType extends ProviderConfig
     protected shouldCleanupDirectory(bucket: BucketType, cleanup: boolean | undefined): boolean {
         return cleanup === true || (undefined === cleanup && (bucket.config.autoCleanup === true || this.config.autoCleanup === true || this.storage.config.autoCleanup === true));
     }
-
 
     protected parseException(ex: Error, type: StorageExceptionType = StorageExceptionType.NATIVE_ERROR) {
         if (ex.name === 'ENOENT') {

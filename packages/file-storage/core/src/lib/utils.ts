@@ -1,4 +1,6 @@
 import path from 'path';
+import { Streams } from '../types';
+import { IncomingMessage } from 'http';
 
 /* eslint-disable @typescript-eslint/no-var-requires */
 /**
@@ -129,11 +131,50 @@ export function castValue<T extends number | string | boolean | Record<string, u
     }
 }
 
+export async function streamToBuffer(src: Streams.Readable): Promise<Buffer> {
+    const parts: any = [];
+    src.on('data', data => parts.push(data));
+    return new Promise((resolve, reject) => {
+        src.on('end', () => resolve(Buffer.concat(parts)));
+        src.on('error', err => reject(err));
+    });
+}
 
+export function convertToReadStream(src: Buffer | string | Streams.Readable | IncomingMessage): Streams.Readable {
+    if (typeof (src) === 'string' || src instanceof Buffer) {
+        const readStream = new Streams.Readable();
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        readStream._read = (): void => { };
+        readStream.push(src);
+        readStream.push(null);
+        return readStream;
+    }
+    return src;
+}
+
+export async function writeToStream(src: Streams.Readable, dest: Streams.Writable): Promise<void> {
+    return new Promise((resolve, reject) => {
+        src
+            .pipe(dest)
+            .on('error', (err: any) => reject(err))
+            .on('finish', resolve);
+        dest.on('error', reject);
+    });
+}
+
+/**
+ * Join paths
+ * @param paths the paths to join
+ */
 export function joinPath(...paths: string[]): string {
     return path.join(...paths).replace(/\\/g, '/');
 }
 
+/**
+ * Join paths to url
+ * @param url the url
+ * @param parts the parts to join
+ */
 export function joinUrl(url: string, ...parts: string[]): string {
     return url + '/' + joinPath(...parts);
 }

@@ -89,7 +89,7 @@ describe('Storage tests', () => {
         expect(bucket02).toBeInstanceOf(Bucket);
 
         const urlProviderConfig02: S3ProviderConfig = {
-            uri: `s3://us-east-2/?keyFile=${s3CredentialsFile}`
+            uri: `s3://${s3CredentialsFile}`
         };
         const provider02 = (await storage.addProvider('provider03', urlProviderConfig02)).result;
         expect((await provider02.addBucket("bucket03",s3RootConfig.buckets[2])).result).toBeInstanceOf(Bucket)

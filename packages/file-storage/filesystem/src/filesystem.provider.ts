@@ -23,6 +23,8 @@ import {
     constructError,
     joinPath,
     castValue,
+    writeToStream,
+    convertToReadStream,
 
 } from "@bigbangjs/file-storage";
 import { FileSystemBucketConfig, FileSystemNativeResponse, FileSystemProviderConfig } from './types';
@@ -288,25 +290,9 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             await this.ensureDirExists(this.extractDirectoryFromPath(absFilename));
             let promise = null;
             const writeStream = fs.createWriteStream(absFilename, { flags: 'w' });
-            let readStream: Streams.Readable = null;
-            if (contents instanceof Buffer) {
-                readStream = new Streams.Readable();
-                // eslint-disable-next-line @typescript-eslint/no-empty-function
-                readStream._read = (): void => { };
-                readStream.push(contents);
-                readStream.push(null);
-            } else if (contents instanceof Streams.Readable) {
-                readStream = contents;
-            }
-
+            const readStream: Streams.Readable = convertToReadStream(contents)
             if (readStream) {
-                promise = new Promise((resolve, reject) => {
-                    readStream
-                        .pipe(writeStream)
-                        .on("error", (err) => reject(this.parseException(err)))
-                        .on("finish", resolve);
-                    writeStream.on("error", reject);
-                });
+                promise = writeToStream(readStream, writeStream);
             } else {
                 promise = fs.promises.writeFile(absFilename, contents.toString(), { flag: 'w' });
             }
@@ -348,11 +334,12 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             this.isFileOrTrow(src, 'src');
 
             // resolved uri
+            const isDirectory=this.isDirectory(this.getFilenameFromFile(dest));
             const destResolvedUri = this.resolveFileUri(bucket, dest, true);
             this.checkWritePermission(destResolvedUri.bucket as FilesystemBucket);
             dest = this.makeSlug(this.getFilenameFromFile(destResolvedUri.path));
             // if the dest is a directory, join the file to the dest
-            if (this.isDirectory(this.getFilenameFromFile(dest))) {
+            if (isDirectory) {
                 dest = joinPath(dest, this.extractFilenameFromPath(src));
                 this.isFileOrTrow(dest, 'dest');
             }
@@ -383,11 +370,12 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
             this.isFileOrTrow(src, 'src');
 
             // resolved uri
+            const isDirectory=this.isDirectory(this.getFilenameFromFile(dest));
             const destResolvedUri = this.resolveFileUri(bucket, dest, true);
             this.checkWritePermission(destResolvedUri.bucket as FilesystemBucket);
             dest = this.makeSlug(this.getFilenameFromFile(destResolvedUri.path));
             // if the dest is a directory, join the file to the dest
-            if (this.isDirectory(this.getFilenameFromFile(dest))) {
+            if (isDirectory) {
                 dest = joinPath(dest, this.extractFilenameFromPath(src));
                 this.isFileOrTrow(dest, 'dest');
             }
@@ -528,7 +516,7 @@ export class FilesystemProvider extends AbstractProvider<FileSystemProviderConfi
         const meta = {
             path: path,
             name: relativePathParts.slice().reverse()[0],
-            nativeAbsolutePath: src,
+            nativeAbsolutePath: this.getNativePath(bucket, path),
             nativeMeta: stats,
             type: 'FILE',
             createdAt: stats.birthtime,

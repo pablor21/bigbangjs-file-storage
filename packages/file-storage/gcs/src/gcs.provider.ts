@@ -23,11 +23,16 @@ import {
     Registry,
     stringNullOrEmpty,
     castValue,
-    joinPath
+    joinPath,
+    writeToStream,
+    convertToReadStream,
+    IFileMeta,
+    StorageFile,
+    SignedUrlOptions
 } from "@bigbangjs/file-storage";
 import path from 'path';
 import fs from 'fs';
-import { Storage as GSStorage } from '@google-cloud/storage';
+import { Storage as GSStorage, Bucket as GCSNativeBucket, GetFilesOptions as GCSNativeGetFilesOptions, DeleteFilesOptions as GCSNativeDeleteFilesOptions } from '@google-cloud/storage';
 import { GCSBucket } from './gcs.bucket';
 import { GCSBucketConfig, GCSNativeResponse, GCSProviderConfig } from "./types";
 
@@ -146,6 +151,7 @@ export class GCSProvider extends AbstractProvider<GCSProviderConfig, GCSBucket, 
                 await response.getMetadata();
             } catch (ex) {
                 if (ex.code === 404 && config.tryCreate) {
+                    await this.client.createBucket(config.bucketName);
                     return this.addBucket(name, config);
                 }
                 this.parseException(ex);
@@ -185,48 +191,339 @@ export class GCSProvider extends AbstractProvider<GCSProviderConfig, GCSBucket, 
             throw error;
         }
     }
-    public listUnregisteredBuckets(creationOptions?: BucketConfigOptions): Promise<StorageResponse<GCSBucketConfig[], GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+
+    public async listUnregisteredBuckets(creationOptions?: BucketConfigOptions): Promise<StorageResponse<GCSBucketConfig[], GCSNativeResponse>> {
+        await this.makeReady();
+        try {
+            const options = Object.assign({}, {
+                mode: '0777',
+                useNativeUrlGenerator: this.config.useNativeUrlGenerator
+            }, creationOptions);
+            const ret: GCSBucketConfig[] = [];
+            const registerdBuckets = (await this.listBuckets()).result;
+            const allBuckets = await this.client.getBuckets();
+            const cantidates = allBuckets[0].filter((b: GCSNativeBucket) => !registerdBuckets.find(f => {
+                return f.gcsBucket.name === b.name
+            }));
+            cantidates.map(c => {
+                ret.push({
+                    name: c.name,
+                    mode: options.mode,
+                    bucketName: c.name,
+                    useNativeUrlGenerator: options.useNativeUrlGenerator
+                })
+            });
+
+            return this.makeResponse(ret);
+        } catch (ex) {
+            this.parseException(ex);
+        }
     }
-    public deleteFile(bucket: GCSBucket, path: string | IStorageFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+
+    public async deleteFile(bucket: GCSBucket, path: string | IStorageFile, options?: DeleteFileOptions): Promise<StorageResponse<boolean, GCSNativeResponse>> {
+        await this.makeReady();
+        this.checkWritePermission(bucket);
+
+        try {
+            path = this.resolveBucketPath(bucket, path);
+            this.isFileOrTrow(path, 'path');
+            const result = await bucket.gcsBucket.file(path).delete();
+            return this.makeResponse(true, result)
+        } catch (ex) {
+            if (ex.code === 404) {
+                return this.makeResponse(true, {});
+            }
+            this.parseException(ex);
+        }
     }
-    public deleteFiles(bucket: GCSBucket, path: string, pattern: Pattern, options?: DeleteManyFilesOptions): Promise<StorageResponse<boolean, GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+    public async fileExists<RType extends boolean | IStorageFile = any>(bucket: GCSBucket, path: string | IStorageFile, returning?: boolean): Promise<StorageResponse<RType, GCSNativeResponse>> {
+        await this.makeReady();
+        this.checkReadPermission(bucket);
+        try {
+            path = this.resolveBucketPath(bucket, path);
+            const info = await this.generateFileObject(bucket, path);
+            if (info) {
+                if (returning) {
+                    return this.makeResponse(info);
+                }
+                return this.makeResponse(true);
+            } else {
+                return this.makeResponse(false);
+            }
+        } catch (ex) {
+            if (ex.code === 404) {
+                return this.makeResponse(false);
+            }
+            this.parseException(ex);
+        }
     }
-    public fileExists<RType extends boolean | IStorageFile = any>(bucket: GCSBucket, path: string | IStorageFile, returning?: boolean): Promise<StorageResponse<RType, GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+    public async listFiles<RType extends IStorageFile[] | string[] = IStorageFile[]>(bucket: GCSBucket, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, GCSNativeResponse>> {
+        await this.makeReady();
+        this.checkReadPermission(bucket);
+        const ret: any[] = [];
+        try {
+            path = this.resolveBucketPath(bucket, path);
+            if (path.indexOf('/') === 0) {
+                path = path.substring(1);
+            }
+            const params: GCSNativeGetFilesOptions = {
+                prefix: !stringNullOrEmpty(path) ? path : undefined,
+                maxResults: options?.maxResults,
+                autoPaginate: false,
+                delimiter: (!options?.recursive) ? '/' : undefined,
+            }
+            let response;
+            do {
+                response = (await bucket.gcsBucket.getFiles(params));
+                let result = response[0];
+                // filter by pattern
+                if (options?.pattern) {
+                    const pattern = options.pattern;
+                    if (options.pattern) {
+                        result = result.filter(f => {
+                            const matches = this.fileNameMatches(f.name, options.pattern);
+                            return matches;
+                        });
+                    } else {
+                        this.log('warn', `Invalid glob pattern ${pattern}`);
+                    }
+                }
+                // filter by function
+                if (options?.filter && typeof (options?.filter) === 'function') {
+                    result = await Promise.all(result.filter(async f => await options.filter(f.name, path)))
+                }
+
+                await Promise.all(result.map(async c => {
+                    if (this.shouldReturnObject(options?.returning)) {
+                        ret.push(this.generateFileObject(bucket, c.name, await this.makeFileMetaFromResponse(bucket, c.name, c)));
+                    } else {
+                        ret.push(this.getStorageUri(bucket, c.name));
+                    }
+                }));
+                //there are more results
+                if (response[1]) {
+                    Object.assign(params, response[1]);
+                }
+            } while (response[1]);
+            const promiseResult = await Promise.all(ret);
+            return this.makeResponse({
+                entries: promiseResult
+            }, response);
+        } catch (ex) {
+            this.parseException(ex);
+        }
     }
-    public listFiles<RType extends IStorageFile[] | string[] = IStorageFile[]>(bucket: GCSBucket, path: string, options?: ListFilesOptions): Promise<StorageResponse<ListResult<RType>, GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+
+    public async putFile<RType extends string | IStorageFile = any>(bucket: GCSBucket, fileName: string | IStorageFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, GCSNativeResponse>> {
+        await this.makeReady();
+        this.checkWritePermission(bucket);
+
+        fileName = this.makeSlug(fileName);
+        const absFilename = this.resolveBucketPath(bucket, fileName, false);
+        this.isFileOrTrow(absFilename, 'fileName');
+
+        if (options?.overwrite === false) {
+            const exists = (await this.fileExists(bucket, fileName, false)).result;
+            if (exists) {
+                const fName = this.getFilenameFromFile(fileName);
+                throw constructError(`The file ${fName} already exists!`, StorageExceptionType.DUPLICATED_ELEMENT);
+            }
+        }
+
+        try {
+            const file = bucket.gcsBucket.file(fileName);
+            const writeStream = file.createWriteStream();
+            const readStream = convertToReadStream(contents);
+            const promise = writeToStream(readStream, writeStream);
+            const response = await promise;
+            let ret: any = this.storage.makeFileUri(this, bucket, fileName);
+            if (this.shouldReturnObject(options?.returning)) {
+                ret = await this.generateFileObject(bucket, fileName);
+            }
+            return this.makeResponse(ret, {});
+        } catch (ex) {
+            this.parseException(ex);
+        }
     }
-    public putFile<RType extends string | IStorageFile = any>(bucket: GCSBucket, fileName: string | IStorageFile, contents: string | Buffer | Streams.Readable, options?: CreateFileOptions): Promise<StorageResponse<RType, GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+    public async getFileStream(bucket: GCSBucket, fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, GCSNativeResponse>> {
+        await this.makeReady();
+        this.checkReadPermission(bucket);
+        fileName = this.resolveBucketPath(bucket, fileName);
+        const file = bucket.gcsBucket.file(fileName);
+        const stream = file.createReadStream();
+        return this.makeResponse(stream);
     }
-    public getFileStream(bucket: GCSBucket, fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Streams.Readable, GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+
+    public async copyFile<RType extends string | IStorageFile = IStorageFile>(bucket: GCSBucket, src: string | IStorageFile, dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<RType, GCSNativeResponse>> {
+        await this.makeReady();
+        this.checkWritePermission(bucket);
+        try {
+            // parse paths
+            src = this.resolveBucketPath(bucket, src, false);
+            this.isFileOrTrow(src, 'src');
+
+            // resolved uri
+            const isDirectory = this.isDirectory(this.getFilenameFromFile(dest));
+            const destResolvedUri = this.resolveFileUri(bucket, dest, true);
+            this.checkWritePermission(destResolvedUri.bucket as GCSBucket);
+            dest = this.makeSlug(this.getFilenameFromFile(destResolvedUri.path));
+            // if the dest is a directory, join the file to the dest
+            if (isDirectory) {
+                dest = joinPath(dest, this.extractFilenameFromPath(src));
+                this.isFileOrTrow(dest, 'dest');
+            }
+
+            const destUrl = destResolvedUri.bucket.getNativePath(dest);
+            const result = await bucket.gcsBucket.file(src).copy(destUrl)
+
+            if (this.shouldReturnObject(options?.returning)) {
+                return this.makeResponse(await this.generateFileObject(destResolvedUri.bucket as GCSBucket, dest), result);
+            }
+            return this.makeResponse(this.getStorageUri(destResolvedUri.bucket as GCSBucket, dest), result);
+
+
+        } catch (ex) {
+            this.parseException(ex);
+        }
     }
-    public getFileContents(bucket: GCSBucket, fileName: string | IStorageFile, options?: GetFileOptions): Promise<StorageResponse<Buffer, GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+
+    public async moveFile<RType extends string | IStorageFile = IStorageFile>(bucket: GCSBucket, src: string | IStorageFile, dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<RType, GCSNativeResponse>> {
+        await this.makeReady();
+        this.checkWritePermission(bucket);
+        try {
+            // parse paths
+            src = this.resolveBucketPath(bucket, src, false);
+            this.isFileOrTrow(src, 'src');
+
+            // resolved uri
+            const isDirectory = this.isDirectory(this.getFilenameFromFile(dest));
+            const destResolvedUri = this.resolveFileUri(bucket, dest, true);
+            this.checkWritePermission(destResolvedUri.bucket as GCSBucket);
+            dest = this.makeSlug(this.getFilenameFromFile(destResolvedUri.path));
+            // if the dest is a directory, join the file to the dest
+            if (isDirectory) {
+                dest = joinPath(dest, this.extractFilenameFromPath(src));
+                this.isFileOrTrow(dest, 'dest');
+            }
+
+            const destUrl = destResolvedUri.bucket.getNativePath(dest);
+            const result = await bucket.gcsBucket.file(src).move(destUrl)
+
+            if (this.shouldReturnObject(options?.returning)) {
+                return this.makeResponse(await this.generateFileObject(destResolvedUri.bucket as GCSBucket, dest), result);
+            }
+            return this.makeResponse(this.getStorageUri(destResolvedUri.bucket as GCSBucket, dest), result);
+
+
+        } catch (ex) {
+            this.parseException(ex);
+        }
     }
-    public copyFile<RType extends string | IStorageFile = IStorageFile>(bucket: GCSBucket, src: string | IStorageFile, dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<RType, GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+
+    public async emptyBucket(bucket: GCSBucket): Promise<StorageResponse<boolean, GCSNativeResponse>> {
+        try {
+            await bucket.gcsBucket.deleteFiles();
+            return this.makeResponse(true);
+        } catch (ex) {
+            this.parseException(ex);
+        }
     }
-    public moveFile<RType extends string | IStorageFile = IStorageFile>(bucket: GCSBucket, src: string | IStorageFile, dest: string | IStorageFile, options?: CopyFileOptions): Promise<StorageResponse<RType, GCSNativeResponse>> {
-        this.client.bucket('test');
-        throw new Error('Method not implemented.');
+
+    public async removeEmptyDirectories(bucket: GCSBucket, path: string): Promise<StorageResponse<boolean, GCSNativeResponse>> {
+        return this.makeResponse(true, {});
     }
-    protected generateFileObject(bucket: GCSBucket, path: string, options?: any): Promise<IStorageFile> {
-        throw new Error('Method not implemented.');
+
+    public async getPublicUrl(bucket: GCSBucket, fileName: string | IStorageFile, options?: any): Promise<string> {
+        if (this.shouldUseNativeUrlGenerator(bucket)) {
+            return bucket.gcsBucket.file(this.getFilenameFromFile(fileName)).publicUrl();
+        } else {
+            return super.getPublicUrl(bucket, fileName, options);
+        }
     }
-    public copyFiles<RType extends string[] | IStorageFile[] = IStorageFile[]>(bucket: GCSBucket, src: string, dest: string, pattern: Pattern, options?: CopyManyFilesOptions): Promise<StorageResponse<RType, GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+
+    public async getSignedUrl(bucket: GCSBucket, fileName: string | IStorageFile, options?: SignedUrlOptions): Promise<string> {
+        options = options || {};
+        let url: string;
+        options.expiration = options.expiration || bucket.config.defaultSignedUrlExpiration || this.config.defaultSignedUrlExpiration || this.storage.config.defaultSignedUrlExpiration;
+        if (this.shouldUseNativeUrlGenerator(bucket)) {
+            const config: any = {
+                version: 'v4',
+                action: "read",
+                expires: Date.now() + options.expiration * 1000,
+            };
+            url = (await bucket.gcsBucket.file(this.getFilenameFromFile(fileName)).getSignedUrl(config))[0];
+        } else {
+            url = await super.getSignedUrl(bucket, fileName, options);
+        }
+        return url;
     }
-    public moveFiles<RType extends string[] | IStorageFile[] = IStorageFile[]>(bucket: GCSBucket, src: string, dest: string, pattern: Pattern, options?: MoveManyFilesOptions): Promise<StorageResponse<RType, GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+
+    public getNativePath(bucket: GCSBucket, fileName: string | IStorageFile): string {
+        const path = this.resolveFileUri(bucket, fileName);
+        const file = bucket.gcsBucket.file(this.getFilenameFromFile(path.path));
+        return `gs://${bucket.gcsBucket.name}/${file.name}`;
     }
-    public removeEmptyDirectories(bucket: GCSBucket, path: string): Promise<StorageResponse<boolean, GCSNativeResponse>> {
-        throw new Error('Method not implemented.');
+
+
+    protected async makeFileMetaFromResponse(bucket: GCSBucket, path: string, data: any): Promise<IFileMeta> {
+        const parts = path.split('/');
+        const mime = await this.getMime(path);
+        return {
+            path: parts.slice(0, parts.length - 1).join('/'),
+            name: parts.slice().reverse()[0],
+            nativeAbsolutePath: this.getNativePath(bucket, path),
+            nativeMeta: data,
+            type: 'FILE',
+            updatedAt: data.updated,
+            createdAt: data.timeCreated,
+            size: Number(data.size || 0),
+            uri: this.getStorageUri(bucket, path),
+            mime: mime,
+            exists: true
+        } as IFileMeta;
+
     }
+
+    protected async generateFileMeta(path: string, bucket: GCSBucket): Promise<IFileMeta | undefined> {
+        await this.makeReady();
+        try {
+            const info = await bucket.gcsBucket.file(path).getMetadata();
+            if (!info || !info[0]) {
+                return;
+            }
+            return await this.makeFileMetaFromResponse(bucket, path, info[0]);
+        } catch (ex) {
+            this.parseException(ex);
+        }
+    }
+
+    protected async generateFileObject(bucket: GCSBucket, path: string | IStorageFile, meta?: IFileMeta): Promise<IStorageFile> {
+        await this.makeReady();
+        try {
+            let ret;
+            meta = meta || await this.generateFileMeta(this.resolveBucketPath(bucket, path), bucket);
+            if (!meta) {
+                return;
+            }
+            ret = new StorageFile(bucket, meta);
+            ret.uri = this.storage.makeFileUri(this, bucket, path);
+            if (typeof (path) === 'string') {
+                return ret;
+            } else {
+                ret = path;
+                path.bucket = bucket;
+                path.meta = meta;
+                return ret;
+            }
+
+        } catch (ex) {
+            this.parseException(ex);
+        }
+    }
+
+    protected shouldUseNativeUrlGenerator(bucket: GCSBucket): boolean {
+        return bucket.config.useNativeUrlGenerator === true || (bucket.config.useNativeUrlGenerator === undefined && this.config.useNativeUrlGenerator === true);
+    }
+
 
 }

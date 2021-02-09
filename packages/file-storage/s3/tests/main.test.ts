@@ -1,5 +1,5 @@
 import path from 'path';
-import { Bucket, StorageFile, FileStorage } from '@bigbangjs/file-storage';
+import { Bucket, StorageFile, FileStorage, streamToBuffer, convertToReadStream, Streams } from '@bigbangjs/file-storage';
 import https from 'https';
 import fs from 'fs';
 import { S3Provider, S3ProviderConfig } from '../src';
@@ -18,7 +18,7 @@ describe('S3 tests', () => {
         const urlProviderConfig02: S3ProviderConfig = {
             uri: `s3://${credentialsFile}`
         };
-        const provider01 = (await storage.addProvider('provider01', urlProviderConfig02)).result;
+        const provider01 = (await storage.addProvider<S3Provider>('provider01', urlProviderConfig02)).result;
         expect(provider01).toBeInstanceOf(S3Provider);
         expect(storage.getProvider('provider01')).toBe(provider01);
 
@@ -56,10 +56,14 @@ describe('S3 tests', () => {
         res = (await bucket01.getFile('file-01.txt'));
         expect(res.result.getPublicUrl()).toBeTruthy();
         res = (await bucket01.getFile('file-01.txt'));
-        expect(res.result.getSignedUrl()).toBeTruthy();
+        res = await res.result.getSignedUrl();
+        //check the signed url content
+        res = await streamToBuffer(convertToReadStream(await makeRequest(res)));
+        expect(res).toBeTruthy();
+        expect(res.toString()).toBe('Test 01');
 
         // check native path
-        expect(bucket01.getNativePath(file01)).toBe('file-01.txt');
+        expect(bucket01.getNativePath(file01)).toBe('s3://' + bucket01.bucketName + '/file-01.txt');
 
         const f = (await bucket01.fileExists(file01, true)).result;
         expect(f).toBeInstanceOf(StorageFile);
@@ -68,13 +72,9 @@ describe('S3 tests', () => {
         res = (await bucket02.fileExists(file02));
         expect(res.result).toBe(true);
 
-        const p = new Promise(resolve => {
-            https.get('https://kitsu.io/api/edge/anime', async response => {
-                const fileFromStream = (await bucket01.putFile('file 03.json', response, { returning: true })).result;
-                resolve(fileFromStream);
-            });
-        });
-        res = await p;
+
+        res = await makeRequest('https://kitsu.io/api/edge/anime');
+        res = (await bucket01.putFile('file 03.json', res, { returning: true })).result;
         expect(res).toBeInstanceOf(StorageFile);
 
         // copy between buckets
@@ -83,7 +83,7 @@ describe('S3 tests', () => {
 
         const file04 = (await bucket01.copyFile('file-01.txt', 'provider01://bucket02/file-01-copy-from-bucket01.txt', { returning: true })).result;
         expect(file04).toBeInstanceOf(StorageFile);
-        expect(file04.getNativePath()).toBe(path.join(file04.getAbsolutePath()));
+        expect(file04.getNativePath()).toBe('s3://' + bucket02.bucketName + '/' + file04.getAbsolutePath());
 
         // move between buckets
         const file05 = (await bucket02.moveFile(file02, 'provider01://bucket01/subdir 01/file moved.txt', { returning: true })).result;
@@ -111,7 +111,7 @@ describe('S3 tests', () => {
         expect((await bucket01Filelist.entries[0].getStream()).result).toBeTruthy();
 
         const bucket02Filelist = (await bucket02.listFiles()).result;
-        expect(bucket02Filelist.entries).toHaveLength(2);
+        expect(bucket02Filelist.entries).toHaveLength(1);
 
         // copy multiple files
         const multipleCopy = (await bucket01.copyFiles('/', 'provider01://bucket02/multiplecopy/', '**')).result;
@@ -139,3 +139,7 @@ describe('S3 tests', () => {
     })
 
 });
+
+async function makeRequest(url: string): Promise<Streams.Readable> {
+    return new Promise(resolve => https.get(url, response => resolve(response)));
+}
