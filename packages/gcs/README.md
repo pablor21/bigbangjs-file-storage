@@ -1,6 +1,6 @@
 # 💥 BigBangJS File Storage - Google Cloud Storage Provider
 
-Google Cloud Storage provider for [`@bigbangjs/file-storage`](../../).
+Google Cloud Storage provider for [`@bigbangjs/file-storage`](https://github.com/pablor21/bigbangjs-file-storage/).
 
 ---
 
@@ -68,7 +68,7 @@ const fileUri= (await myBucket.putFile('directory/test.txt', 'Hello world!')).re
 
 ## 💥 Provider configuration options
 
-You can set the configuration of the provider as an "url" or a [`GCSProviderConfig`](./src/types.ts) object.
+You can set the configuration of the provider as an "url" or a [`GCSProviderConfig`](https://github.com/pablor21/bigbangjs-file-storage/tree/master/packages/gcs/src/types.ts) object.
 
 The url must be in the form:
 ```Typescript
@@ -138,7 +138,7 @@ The configuration object can have the following properties:
 
 ## 💥 Bucket configuration options
 
-You can set the configuration of the provider as an "url" or a [`GCSBucketConfig`](./src/types.ts) object.
+You can set the configuration of the provider as an "url" or a [`GCSBucketConfig`](https://github.com/pablor21/bigbangjs-file-storage/tree/master/packages/gcs/src/types.ts) object.
 
 The url must be in the form:
 ```Typescript

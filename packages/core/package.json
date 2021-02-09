@@ -8,6 +8,14 @@
 		"email": "me@pjramirez.com",
 		"url": "https://pjramirez.com"
 	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/pablor21/bigbangjs-file-storage.git"
+	},
+	"bugs": {
+		"url": "https://github.com/pablor21/bigbangjs-file-storage/issues"
+	},
+	"homepage": "https://github.com/pablor21/bigbangjs-file-storage",
 	"license": "MIT",
 	"files": [
 		"index.js",

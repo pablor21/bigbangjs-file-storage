@@ -1,6 +1,6 @@
 # 💥 BigBangJS File Storage - Filesystem Provider
 
-Filesystem provider for [`@bigbangjs/file-storage`](../../).
+Filesystem provider for [`@bigbangjs/file-storage`](https://github.com/pablor21/bigbangjs-file-storage/).
 
 ---
 
@@ -67,7 +67,7 @@ const fileUri= (await myBucket.putFile('directory/test.txt', 'Hello world!')).re
 
 ## 💥 Provider configuration options
 
-You can set the configuration of the provider as an "url" or a [`FileSystemProviderConfig`](./src/types.ts) object.
+You can set the configuration of the provider as an "url" or a [`FileSystemProviderConfig`](https://github.com/pablor21/bigbangjs-file-storage/tree/master/packages/filesystem/src/types.ts) object.
 
 The url must be in the form:
 ```Typescript
@@ -97,7 +97,7 @@ The configuration object can have the following properties:
 
 ## 💥 Bucket configuration options
 
-You can set the configuration of the provider as an "url" or a [`FileSystemBucketConfig`](./src/types.ts) object.
+You can set the configuration of the provider as an "url" or a [`FileSystemBucketConfig`](https://github.com/pablor21/bigbangjs-file-storage/tree/master/packages/filesystem/src/types.ts) object.
 
 The url must be in the form:
 ```Typescript
