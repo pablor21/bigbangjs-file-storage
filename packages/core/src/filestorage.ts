@@ -141,8 +141,8 @@ export class FileStorage {
             return { result: provider as RType, nativeResponse: {} };
         }
         try {
-            const response = await provider.init();
             this.addListenersToProvider(provider);
+            const response = await provider.init();
             this.providers.add(configOptions.name, provider);
             return { result: provider as RType, nativeResponse: response };
         } catch (ex) {
